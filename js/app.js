@@ -1,78 +1,20 @@
 /**
  * NKS0 PCAP Analyzer — static GitHub Pages frontend
- *
- * The frontend is backend-agnostic: the API base URL and optional API key
- * are stored in localStorage. The backend (FastAPI + NKS0 engine) can be
- * hosted anywhere (Fly.io, Render, Railway, local).
+ * No authentication required — uses the guest analysis endpoint.
  */
 
-// ─── Config keys ─────────────────────────────────────────────────────────────
+// ─── Backend URL (hardcoded — no user configuration needed) ──────────────────
 
-const API_BASE_KEY    = 'nks0_api_base';
-const API_KEY_STORAGE = 'nks0_api_key';
-const DEFAULT_API     = 'http://localhost:8080';
+const API_BASE = 'https://nks0-api.onrender.com';
 
-// ─── API base / key helpers ───────────────────────────────────────────────────
+function getApiBase() { return API_BASE; }
+function apiHeaders() { return {}; }
 
-function getApiBase() {
-    const v = localStorage.getItem(API_BASE_KEY);
-    return (v && v.trim()) ? v.trim().replace(/\/+$/, '') : DEFAULT_API;
-}
-
-function setApiBase(url) {
-    const v = (url || '').trim().replace(/\/+$/, '');
-    if (v) localStorage.setItem(API_BASE_KEY, v);
-    else localStorage.removeItem(API_BASE_KEY);
-    syncConnectionBar();
-    checkApiStatus();
-}
-
-function getApiKey() {
-    const v = localStorage.getItem(API_KEY_STORAGE);
-    return (v && v.trim()) ? v.trim() : '';
-}
-
-function setApiKey(key) {
-    const v = (key || '').trim();
-    if (v) localStorage.setItem(API_KEY_STORAGE, v);
-    else localStorage.removeItem(API_KEY_STORAGE);
-}
-
-function apiHeaders() {
-    const key = getApiKey();
-    return key ? { 'X-API-Key': key } : {};
-}
-
-// ─── Connection bar ───────────────────────────────────────────────────────────
+// ─── Connection status ────────────────────────────────────────────────────────
 
 function initConnectionBar() {
-    const urlInput  = document.getElementById('api-base-input');
-    const keyInput  = document.getElementById('api-key-input');
-    const saveBtn   = document.getElementById('api-save-btn');
-
-    if (!urlInput) return;
-
-    syncConnectionBar();
-
-    const save = () => {
-        setApiBase(urlInput.value);
-        setApiKey(keyInput ? keyInput.value : '');
-        maybeHideNoBackendWarning();
-    };
-
-    if (saveBtn) saveBtn.addEventListener('click', save);
-    urlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
-
     checkApiStatus();
-    // Refresh connection status every 30 s
     setInterval(checkApiStatus, 30_000);
-}
-
-function syncConnectionBar() {
-    const urlInput = document.getElementById('api-base-input');
-    const keyInput = document.getElementById('api-key-input');
-    if (urlInput) urlInput.value = getApiBase();
-    if (keyInput) keyInput.value = getApiKey();
 }
 
 function setApiStatus(text, kind) {
@@ -85,27 +27,10 @@ function setApiStatus(text, kind) {
 
 function checkApiStatus() {
     setApiStatus('…', '');
-    fetch(getApiBase() + '/api/health', { method: 'GET', headers: apiHeaders() })
+    fetch(API_BASE + '/api/health')
         .then(r => r.ok ? r.json() : Promise.reject())
-        .then(() => setApiStatus('Connected', 'ok'))
-        .catch(() => setApiStatus('Disconnected', 'error'));
-}
-
-// ─── "No backend" warning (index page) ───────────────────────────────────────
-
-function maybeShowNoBackendWarning() {
-    const w = document.getElementById('no-backend-warning');
-    if (!w) return;
-    // Show if API base is still the default local address
-    const base = getApiBase();
-    if (base === DEFAULT_API || base === '') {
-        w.classList.remove('d-none');
-    }
-}
-
-function maybeHideNoBackendWarning() {
-    const w = document.getElementById('no-backend-warning');
-    if (w) w.classList.add('d-none');
+        .then(() => setApiStatus('Online', 'ok'))
+        .catch(() => setApiStatus('Offline', 'error'));
 }
 
 // ─── Utilities ───────────────────────────────────────────────────────────────
@@ -168,8 +93,6 @@ function initUpload() {
     input.addEventListener('change', () => {
         if (input.files.length > 0) uploadFile(input.files[0]);
     });
-
-    maybeShowNoBackendWarning();
 }
 
 function uploadFile(file) {
