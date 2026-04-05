@@ -1,0 +1,358 @@
+/* NKS0 PCAP Analyzer — GitHub Pages static frontend */
+
+:root {
+    --nks-bg:           #0d1117;
+    --nks-surface:      #161b22;
+    --nks-border:       #30363d;
+    --nks-text:         #e6edf3;
+    --nks-text-muted:   #8b949e;
+    --nks-accent:       #58a6ff;
+    --nks-high:         #f85149;
+    --nks-medium:       #d29922;
+    --nks-low:          #58a6ff;
+    --nks-info:         #3fb950;
+}
+
+/* ─── Base ─────────────────────────────────────────────────── */
+
+body {
+    background-color: var(--nks-bg);
+    color: var(--nks-text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+}
+
+/* ─── Navbar ────────────────────────────────────────────────── */
+
+.nks-navbar {
+    background-color: var(--nks-surface);
+    border-bottom: 1px solid var(--nks-border);
+}
+
+.nks-brand {
+    font-weight: 700;
+    font-size: 1.2rem;
+    color: var(--nks-accent) !important;
+    letter-spacing: 0.06em;
+    text-decoration: none;
+}
+
+/* ─── Connection bar ────────────────────────────────────────── */
+
+.nks-connection-bar {
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.nks-url-input  { max-width: 240px; }
+.nks-key-input  { max-width: 130px; }
+
+.nks-connection-bar .form-control-sm {
+    background-color: var(--nks-bg);
+    border-color: var(--nks-border);
+    color: var(--nks-text);
+    font-size: 0.8rem;
+}
+
+.nks-connection-bar .form-control-sm::placeholder { color: var(--nks-text-muted); }
+
+.nks-connection-bar .form-control-sm:focus {
+    background-color: var(--nks-bg);
+    border-color: var(--nks-accent);
+    color: var(--nks-text);
+    box-shadow: 0 0 0 0.15rem rgba(88, 166, 255, 0.25);
+}
+
+.nks-status-badge {
+    font-size: 0.68rem;
+    font-weight: 600;
+    padding: 0.25rem 0.5rem;
+    background-color: var(--nks-border);
+    color: var(--nks-text-muted);
+    white-space: nowrap;
+}
+
+.nks-status-badge.nks-status-ok    { background-color: rgba(63, 185, 80, 0.2);  color: var(--nks-info); }
+.nks-status-badge.nks-status-error { background-color: rgba(248, 81, 73, 0.2);  color: var(--nks-high); }
+
+/* ─── Hero ──────────────────────────────────────────────────── */
+
+.nks-hero-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--nks-accent);
+    letter-spacing: 0.08em;
+}
+
+/* ─── Cards ─────────────────────────────────────────────────── */
+
+.nks-card {
+    background-color: var(--nks-surface);
+    border: 1px solid var(--nks-border);
+    border-radius: 8px;
+}
+
+.nks-card .card-header {
+    background-color: transparent;
+    border-bottom: 1px solid var(--nks-border);
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: var(--nks-text-muted);
+    padding: 0.6rem 1rem;
+}
+
+.nks-card .card-footer {
+    background-color: transparent;
+    border-top: 1px solid var(--nks-border);
+    padding: 0.5rem 1rem;
+}
+
+/* ─── Stat cards ────────────────────────────────────────────── */
+
+.nks-stat-card { transition: border-color 0.2s; }
+.nks-stat-card:hover { border-color: var(--nks-accent); }
+
+.nks-stat-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--nks-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.nks-stat-label {
+    font-size: 0.7rem;
+    color: var(--nks-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 2px;
+}
+
+/* ─── Upload zone ───────────────────────────────────────────── */
+
+.nks-upload-zone {
+    border: 2px dashed var(--nks-border);
+    border-radius: 12px;
+    padding: 3rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background-color 0.2s;
+    user-select: none;
+}
+
+.nks-upload-zone:hover,
+.nks-upload-zone.drag-over {
+    border-color: var(--nks-accent);
+    background-color: rgba(88, 166, 255, 0.05);
+}
+
+/* ─── Warning banner ────────────────────────────────────────── */
+
+.nks-alert-banner {
+    background-color: rgba(210, 153, 34, 0.1);
+    border-color: rgba(210, 153, 34, 0.4);
+    color: var(--nks-text);
+    font-size: 0.85rem;
+    border-radius: 8px;
+}
+
+.nks-alert-banner .alert-link { color: var(--nks-medium); }
+
+/* ─── Alert list ────────────────────────────────────────────── */
+
+#alerts-container {
+    max-height: 65vh;
+    overflow-y: auto;
+}
+
+.nks-alert-item {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--nks-border);
+    cursor: pointer;
+    transition: background-color 0.12s;
+}
+
+.nks-alert-item:last-child { border-bottom: none; }
+
+.nks-alert-item:hover { background-color: rgba(255, 255, 255, 0.03); }
+
+.nks-alert-item .nks-alert-details {
+    display: none;
+    margin-top: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    font-size: 0.8rem;
+}
+
+.nks-alert-item.expanded .nks-alert-details { display: block; }
+
+/* Alert search input */
+.nks-alert-search {
+    max-width: 180px;
+    background-color: var(--nks-bg);
+    border-color: var(--nks-border);
+    color: var(--nks-text);
+    font-size: 0.78rem;
+}
+
+.nks-alert-search::placeholder { color: var(--nks-text-muted); }
+
+.nks-alert-search:focus {
+    background-color: var(--nks-bg);
+    border-color: var(--nks-accent);
+    color: var(--nks-text);
+    box-shadow: 0 0 0 0.15rem rgba(88, 166, 255, 0.2);
+}
+
+.nks-alerts-footer { padding: 0.4rem 1rem; }
+
+/* ─── Severity badges (summary row) ────────────────────────── */
+
+.nks-sev-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.nks-sev-high   { background-color: rgba(248, 81, 73, 0.15);  color: var(--nks-high);   border: 1px solid rgba(248, 81, 73, 0.3); }
+.nks-sev-medium { background-color: rgba(210, 153, 34, 0.15); color: var(--nks-medium); border: 1px solid rgba(210, 153, 34, 0.3); }
+.nks-sev-low    { background-color: rgba(88, 166, 255, 0.15); color: var(--nks-low);    border: 1px solid rgba(88, 166, 255, 0.3); }
+.nks-sev-info   { background-color: rgba(63, 185, 80, 0.15);  color: var(--nks-info);   border: 1px solid rgba(63, 185, 80, 0.3); }
+
+/* ─── Severity pills (inline in alert rows) ─────────────────── */
+
+.nks-sev-pill {
+    display: inline-block;
+    padding: 0.12rem 0.45rem;
+    border-radius: 4px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+}
+
+.nks-sev-pill.high   { background-color: var(--nks-high);   color: #fff; }
+.nks-sev-pill.medium { background-color: var(--nks-medium); color: #000; }
+.nks-sev-pill.low    { background-color: var(--nks-low);    color: #000; }
+.nks-sev-pill.info   { background-color: var(--nks-info);   color: #000; }
+
+/* ─── Confidence badge ──────────────────────────────────────── */
+
+.nks-conf-badge {
+    display: inline-block;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.68rem;
+    font-weight: 600;
+    background-color: rgba(255, 255, 255, 0.08);
+    color: var(--nks-text-muted);
+    margin-left: 0.4rem;
+}
+
+/* ─── Filter buttons ────────────────────────────────────────── */
+
+.nks-filter-btn {
+    font-size: 0.73rem;
+    padding: 0.2rem 0.5rem;
+}
+
+.nks-filter-btn.active {
+    background-color: var(--nks-accent);
+    border-color: var(--nks-accent);
+    color: #000;
+}
+
+/* ─── Evidence key-value ────────────────────────────────────── */
+
+.nks-evidence-row {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.15rem 0;
+}
+
+.nks-evidence-key {
+    color: var(--nks-text-muted);
+    min-width: 130px;
+    flex-shrink: 0;
+    font-size: 0.75rem;
+}
+
+.nks-evidence-val {
+    color: var(--nks-text);
+    word-break: break-all;
+    font-size: 0.78rem;
+}
+
+/* ─── Tags ──────────────────────────────────────────────────── */
+
+.nks-tag {
+    display: inline-block;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.68rem;
+    background-color: rgba(88, 166, 255, 0.12);
+    color: var(--nks-accent);
+    margin-right: 0.3rem;
+    margin-top: 0.25rem;
+}
+
+/* ─── Table ─────────────────────────────────────────────────── */
+
+.nks-table {
+    color: var(--nks-text);
+    font-size: 0.83rem;
+}
+
+.nks-table thead th {
+    color: var(--nks-text-muted);
+    font-weight: 600;
+    border-bottom-color: var(--nks-border);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.nks-table tbody td {
+    border-bottom-color: var(--nks-border);
+    vertical-align: middle;
+}
+
+/* ─── Recent results list ───────────────────────────────────── */
+
+.nks-recent-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    margin-bottom: 0.3rem;
+    background-color: var(--nks-surface);
+    border: 1px solid var(--nks-border);
+    text-decoration: none;
+    color: var(--nks-text);
+    font-size: 0.83rem;
+    transition: border-color 0.15s;
+}
+
+.nks-recent-item:hover {
+    border-color: var(--nks-accent);
+    color: var(--nks-text);
+}
+
+/* ─── Footer ────────────────────────────────────────────────── */
+
+.nks-footer {
+    color: var(--nks-text-muted);
+    border-top: 1px solid var(--nks-border);
+    padding-top: 1rem;
+}
+
+.nks-footer a { text-decoration: none; }
+.nks-footer a:hover { color: var(--nks-accent) !important; }
