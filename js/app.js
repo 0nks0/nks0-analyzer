@@ -185,22 +185,27 @@ function uploadFile(file) {
     errorDiv.classList.add('d-none');
     progress.classList.remove('d-none');
     if (fnameEl) fnameEl.textContent = file.name;
-    if (statusEl) statusEl.textContent = 'Uploading and analyzing…';
+    if (statusEl) statusEl.textContent = 'Uploading…';
 
     const fd = new FormData();
     fd.append('file', file);
 
-    fetch(getApiBase() + '/api/analyze', {
+    // Use the guest endpoint — no authentication required
+    fetch(getApiBase() + '/api/analyze/guest', {
         method: 'POST',
         body: fd,
         headers: apiHeaders(),
     })
         .then(resp => {
-            if (!resp.ok) return resp.json().then(d => { throw new Error(d.detail || 'Analysis failed'); });
+            if (!resp.ok) return resp.json().then(d => { throw new Error(d.detail || 'Upload failed'); });
             return resp.json();
         })
         .then(data => {
-            window.location.href = 'results.html?id=' + encodeURIComponent(data.id);
+            if (statusEl) statusEl.textContent = 'Analyzing…';
+            return pollJob(data.id);
+        })
+        .then(id => {
+            window.location.href = 'results.html?id=' + encodeURIComponent(id);
         })
         .catch(err => {
             progress.classList.add('d-none');
@@ -208,6 +213,25 @@ function uploadFile(file) {
             const msgEl = document.getElementById('error-message');
             if (msgEl) msgEl.textContent = err.message;
         });
+}
+
+// Poll /api/jobs/:id until done or error, then resolve with the analysis id
+function pollJob(jobId, interval = 1500, maxWait = 300_000) {
+    const deadline = Date.now() + maxWait;
+    return new Promise((resolve, reject) => {
+        const tick = () => {
+            if (Date.now() > deadline) return reject(new Error('Analysis timed out — try a smaller file'));
+            fetch(getApiBase() + '/api/jobs/' + encodeURIComponent(jobId), { headers: apiHeaders() })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'done') return resolve(jobId);
+                    if (data.status === 'error') return reject(new Error(data.detail || 'Analysis failed on server'));
+                    setTimeout(tick, interval);
+                })
+                .catch(() => setTimeout(tick, interval * 2));
+        };
+        tick();
+    });
 }
 
 function resetUpload() {
@@ -224,34 +248,7 @@ function resetUpload() {
 }
 
 function loadRecentResults() {
-    const container = document.getElementById('recent-results');
-    const list      = document.getElementById('recent-list');
-    if (!container || !list) return;
-
-    fetch(getApiBase() + '/api/results', { headers: apiHeaders() })
-        .then(r => r.json())
-        .then(data => {
-            const items = data.results || [];
-            if (!items.length) return;
-
-            container.classList.remove('d-none');
-            list.innerHTML = items.map(item => {
-                const counts = item.alert_counts || {};
-                const badges = ['High', 'Medium', 'Low', 'Info']
-                    .filter(s => counts[s] > 0)
-                    .map(s => `<span class="nks-sev-pill ${sevClass(s)}">${counts[s]} ${s}</span>`)
-                    .join(' ');
-
-                return `<a href="results.html?id=${encodeURIComponent(item.id)}" class="nks-recent-item">
-                    <span><i class="bi bi-file-earmark-text me-1"></i>${escapeHtml(item.filename || item.id)}</span>
-                    <span class="d-flex align-items-center gap-2">
-                        ${badges}
-                        <span class="text-secondary">${formatNumber(item.total_packets)} pkts</span>
-                    </span>
-                </a>`;
-            }).join('');
-        })
-        .catch(() => {});
+    // Guest mode — no auth, no server-side history. Recent results are not available.
 }
 
 // ─── Results page ─────────────────────────────────────────────────────────────
