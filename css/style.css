@@ -356,6 +356,3 @@ body {
 
 .nks-footer a { text-decoration: none; }
 .nks-footer a:hover { color: var(--nks-accent) !important; }
-
-.nks-donate-link { opacity: 0.7; transition: opacity 0.2s; }
-.nks-donate-link:hover { opacity: 1; }
