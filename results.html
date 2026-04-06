@@ -187,25 +187,43 @@
                         </div>
                     </div>
 
-                    <!-- Alert severity breakdown -->
-                    <div class="card nks-card mb-4">
+                </div><!-- /right col -->
+            </div><!-- /main row -->
+
+            <!-- Alert Breakdown + Geo Map row -->
+            <div class="row g-4 mt-0">
+
+                <!-- Alert severity breakdown -->
+                <div class="col-lg-6">
+                    <div class="card nks-card h-100">
                         <div class="card-header">
                             <i class="bi bi-bar-chart"></i> Alert Breakdown
                         </div>
                         <div class="card-body">
-                            <canvas id="severity-chart" height="170"></canvas>
+                            <canvas id="severity-chart"></canvas>
                         </div>
                     </div>
+                </div>
 
-                </div><!-- /right col -->
-            </div><!-- /main row -->
-
-            <!-- Network Flow + Geo Map — equal-width bottom row -->
-            <div class="row g-4 mt-0">
-
-                <!-- Network graph (hidden until data) -->
-                <div id="graph-panel" class="col-lg-6 d-none">
+                <!-- Geo map -->
+                <div id="geo-map-panel" class="col-lg-6">
                     <div class="card nks-card h-100">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-globe"></i> Geo Map</span>
+                            <span class="text-secondary small" id="geo-map-count"></span>
+                        </div>
+                        <div class="card-body p-0">
+                            <div id="geo-map" style="height:260px;border-radius:0 0 8px 8px"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div><!-- /breakdown + geo row -->
+
+            <!-- Network Flow — full width -->
+            <div id="graph-panel" class="row g-4 mt-0 d-none">
+                <div class="col-12">
+                    <div class="card nks-card">
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <span><i class="bi bi-diagram-2"></i> Network Flow</span>
                             <span class="text-secondary small" id="graph-node-count"></span>
@@ -216,21 +234,7 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- Geo map (hidden until coordinates available) -->
-                <div id="geo-map-panel" class="col-lg-6 d-none">
-                    <div class="card nks-card h-100">
-                        <div class="card-header d-flex justify-content-between align-items-center">
-                            <span><i class="bi bi-globe"></i> Geo Map</span>
-                            <span class="text-secondary small" id="geo-map-count"></span>
-                        </div>
-                        <div class="card-body p-0">
-                            <div id="geo-map" style="height:320px;border-radius:0 0 8px 8px"></div>
-                        </div>
-                    </div>
-                </div>
-
-            </div><!-- /bottom row -->
+            </div><!-- /network flow row -->
         </div><!-- /results-content -->
 
         <!-- Error -->

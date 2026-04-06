@@ -301,7 +301,6 @@ function renderResults(data) {
     renderSeverityChart(summary.alert_counts || {});
     renderNetworkGraph(data.connections || summary.connections || [], data.alerts || [], summary.top_talkers || []);
     renderGeoMap(data.hosts || summary.top_talkers || [], data.alerts || []);
-    _adjustBottomRow();
     initExportButtons(data);
 }
 
@@ -1702,18 +1701,6 @@ function renderGeoMap(hosts, alerts) {
     setTimeout(() => { if (_geoMap) _geoMap.invalidateSize(); }, 200);
 }
 
-// ─── Bottom row layout adjuster ───────────────────────────────────────────────
-
-function _adjustBottomRow() {
-    const gPanel = document.getElementById('graph-panel');
-    const mPanel = document.getElementById('geo-map-panel');
-    if (!gPanel || !mPanel) return;
-    const gVis = !gPanel.classList.contains('d-none');
-    const mVis = !mPanel.classList.contains('d-none');
-    const both  = gVis && mVis;
-    if (gVis) { gPanel.classList.toggle('col-lg-6', both); gPanel.classList.toggle('col-lg-12', !both); }
-    if (mVis) { mPanel.classList.toggle('col-lg-6', both); mPanel.classList.toggle('col-lg-12', !both); }
-}
 
 // ─── Guest banner ─────────────────────────────────────────────────────────────
 
