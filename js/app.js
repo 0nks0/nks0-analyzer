@@ -301,6 +301,7 @@ function renderResults(data) {
     renderSeverityChart(summary.alert_counts || {});
     renderNetworkGraph(data.connections || summary.connections || [], data.alerts || [], summary.top_talkers || []);
     renderGeoMap(data.hosts || summary.top_talkers || [], data.alerts || []);
+    _adjustBottomRow();
     initExportButtons(data);
 }
 
@@ -1634,13 +1635,20 @@ function renderGeoMap(hosts, alerts) {
     if (!panel || !mapEl) return;
     _lastGeoMapArgs = [hosts, alerts];
 
-    if (typeof L === 'undefined') { panel.classList.add('d-none'); return; }
+    panel.classList.remove('d-none');
+
+    if (typeof L === 'undefined') {
+        mapEl.innerHTML = '<div class="text-center text-secondary p-4 small"><i class="bi bi-globe" style="font-size:1.5rem"></i><br>Map library unavailable</div>';
+        return;
+    }
 
     const mappable = hosts.filter(h =>
         h.latitude != null && h.longitude != null && isFinite(h.latitude) && isFinite(h.longitude)
     );
-    if (!mappable.length) { panel.classList.add('d-none'); return; }
-    panel.classList.remove('d-none');
+    if (!mappable.length) {
+        mapEl.innerHTML = '<div class="text-center text-secondary p-4 small"><i class="bi bi-globe" style="font-size:1.5rem"></i><br>No geo data — add a MaxMind license key on the server to enable IP geolocation.</div>';
+        return;
+    }
 
     const countEl = document.getElementById('geo-map-count');
     if (countEl) countEl.textContent = `${mappable.length} host${mappable.length !== 1 ? 's' : ''}`;
@@ -1692,6 +1700,19 @@ function renderGeoMap(hosts, alerts) {
         _geoMap.fitBounds(L.featureGroup(markers).getBounds().pad(0.2));
     }
     setTimeout(() => { if (_geoMap) _geoMap.invalidateSize(); }, 200);
+}
+
+// ─── Bottom row layout adjuster ───────────────────────────────────────────────
+
+function _adjustBottomRow() {
+    const gPanel = document.getElementById('graph-panel');
+    const mPanel = document.getElementById('geo-map-panel');
+    if (!gPanel || !mPanel) return;
+    const gVis = !gPanel.classList.contains('d-none');
+    const mVis = !mPanel.classList.contains('d-none');
+    const both  = gVis && mVis;
+    if (gVis) { gPanel.classList.toggle('col-lg-6', both); gPanel.classList.toggle('col-lg-12', !both); }
+    if (mVis) { mPanel.classList.toggle('col-lg-6', both); mPanel.classList.toggle('col-lg-12', !both); }
 }
 
 // ─── Guest banner ─────────────────────────────────────────────────────────────
