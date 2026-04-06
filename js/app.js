@@ -1663,6 +1663,6 @@ function showGuestBanner(expiresAt) {
         const exp = new Date(expiresAt);
         expMsg = ` <span class="text-secondary small">(expires ${exp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})</span>`;
     }
-    banner.innerHTML = `<i class="bi bi-stars"></i> <strong>Want more?</strong> Persistent results, saved history, suppression rules &amp; team features are available on the full platform.${expMsg} Contact <a href="mailto:0nks0@gmail.com" class="alert-link fw-semibold">0nks0@gmail.com</a> to request access.`;
+    banner.innerHTML = `<i class="bi bi-stars"></i> <strong>Want more?</strong> Persistent results, saved history, suppression rules &amp; team features are available on the full platform.${expMsg} Contact <a href="mailto:nirkacher@gmail.com" class="alert-link fw-semibold">nirkacher@gmail.com</a> to request access.`;
     banner.classList.remove('d-none');
 }
