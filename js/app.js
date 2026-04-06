@@ -322,7 +322,7 @@ function renderFilterBar(alerts) {
         .map(([cat, n]) => {
             const active = _checkedCats.has(cat) ? ' active' : '';
             return `<button class="nks-cat-pill${active}" data-cat="${escapeHtml(cat)}"
-                        onclick="toggleCat(${JSON.stringify(cat)}, !_checkedCats.has(${JSON.stringify(cat)}))">${escapeHtml(cat)}<span class="nks-pill-count">${n}</span></button>`;
+                        onclick="toggleCat(this.dataset.cat, !_checkedCats.has(this.dataset.cat))">${escapeHtml(cat)}<span class="nks-pill-count">${n}</span></button>`;
         }).join('');
 
     bar.innerHTML = `<div class="d-flex flex-wrap gap-1 align-items-center">${pills}<span class="nks-filter-count ms-2" id="filter-count"></span></div>`;
