@@ -289,6 +289,7 @@ function filterBySev(sev) {
     _checkedCats = new Set(_allAlerts.map(a => a.category || 'Generic'));
     renderSeverityBadges(_sevCounts);
     renderFilterBar(_allAlerts);
+    updateFilterPills();
     applyFilters();
 }
 
@@ -308,53 +309,33 @@ function renderFilterBar(alerts) {
     const bar = document.getElementById('alert-filter-bar');
     if (!bar) return;
 
-    const sevCounts = {}, catCounts = {};
-    alerts.forEach(a => {
-        const sev = a.severity || 'Info';
+    const catCounts = {};
+    _allAlerts.forEach(a => {
         const cat = a.category || 'Generic';
-        sevCounts[sev] = (sevCounts[sev] || 0) + 1;
         catCounts[cat] = (catCounts[cat] || 0) + 1;
     });
 
-    const sevOrder = ['Critical', 'High', 'Medium', 'Low', 'Info'];
-    const sevItems = sevOrder.filter(s => sevCounts[s]).map(s => {
-        const checked = _checkedSev.has(s) ? 'checked' : '';
-        return `<li><label class="nks-filter-item">
-            <input type="checkbox" ${checked} onchange="toggleSev('${s}', this.checked)">
-            <span class="nks-sev-pill ${sevClass(s)}">${escapeHtml(s)}</span>
-            <span class="nks-filter-pill">${sevCounts[s]}</span>
-        </label></li>`;
-    }).join('');
+    if (!Object.keys(catCounts).length) { bar.innerHTML = ''; return; }
 
-    const catItems = Object.entries(catCounts).sort((a, b) => b[1] - a[1]).map(([cat, n]) => {
-        const checked = _checkedCats.has(cat) ? 'checked' : '';
-        return `<li><label class="nks-filter-item">
-            <input type="checkbox" ${checked} onchange="toggleCat(${JSON.stringify(cat)}, this.checked)">
-            <span>${escapeHtml(cat)}</span>
-            <span class="nks-filter-pill">${n}</span>
-        </label></li>`;
-    }).join('');
+    const pills = Object.entries(catCounts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([cat, n]) => {
+            const active = _checkedCats.has(cat) ? ' active' : '';
+            return `<button class="nks-cat-pill${active}" data-cat="${escapeHtml(cat)}"
+                        onclick="toggleCat(${JSON.stringify(cat)}, !_checkedCats.has(${JSON.stringify(cat)}))">${escapeHtml(cat)}<span class="nks-pill-count">${n}</span></button>`;
+        }).join('');
 
-    bar.innerHTML = `
-        <div class="dropdown">
-            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
-                    data-bs-toggle="dropdown" data-bs-auto-close="outside">
-                <i class="bi bi-funnel"></i> Severity
-            </button>
-            <ul class="dropdown-menu nks-filter-dropdown">${sevItems}</ul>
-        </div>
-        <div class="dropdown">
-            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
-                    data-bs-toggle="dropdown" data-bs-auto-close="outside">
-                <i class="bi bi-tag"></i> Category
-            </button>
-            <ul class="dropdown-menu nks-filter-dropdown">${catItems}</ul>
-        </div>
-        <span class="nks-filter-count" id="filter-count"></span>`;
+    bar.innerHTML = `<div class="d-flex flex-wrap gap-1 align-items-center">${pills}<span class="nks-filter-count ms-2" id="filter-count"></span></div>`;
 }
 
 function toggleSev(sev, on) { on ? _checkedSev.add(sev) : _checkedSev.delete(sev); applyFilters(); }
-function toggleCat(cat, on) { on ? _checkedCats.add(cat) : _checkedCats.delete(cat); applyFilters(); }
+function toggleCat(cat, on) { on ? _checkedCats.add(cat) : _checkedCats.delete(cat); updateFilterPills(); applyFilters(); }
+
+function updateFilterPills() {
+    document.querySelectorAll('#alert-filter-bar .nks-cat-pill').forEach(btn => {
+        btn.classList.toggle('active', _checkedCats.has(btn.dataset.cat));
+    });
+}
 
 // ─── IP search ────────────────────────────────────────────────────────────────
 
@@ -564,6 +545,7 @@ function _osLabel(ip) {
 // ─── Per-category rich renderers ──────────────────────────────────────────────
 
 function _renderAlertBody(alert) {
+    try {
     const cat = alert.category || '';
     let html = '';
     switch (cat) {
@@ -603,6 +585,10 @@ function _renderAlertBody(alert) {
     }
     html += _remediationHtml(cat);
     return html;
+    } catch (e) {
+        console.error('Alert render error:', e, alert);
+        return `<div class="text-secondary small p-2">[Detail render error — ${escapeHtml(String(e.message || e))}]</div>`;
+    }
 }
 
 function _chip(val, label) {
@@ -1675,8 +1661,8 @@ function showGuestBanner(expiresAt) {
     let expMsg = '';
     if (expiresAt) {
         const exp = new Date(expiresAt);
-        expMsg = ` · Expires at ${exp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+        expMsg = ` <span class="text-secondary small">(expires ${exp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})</span>`;
     }
-    banner.innerHTML = `<i class="bi bi-clock-history"></i> Guest result${expMsg} — results are temporary and not stored permanently.`;
+    banner.innerHTML = `<i class="bi bi-stars"></i> <strong>Want more?</strong> Persistent results, saved history, suppression rules &amp; team features are available on the full platform.${expMsg} Contact <a href="mailto:0nks0@gmail.com" class="alert-link fw-semibold">0nks0@gmail.com</a> to request access.`;
     banner.classList.remove('d-none');
 }
