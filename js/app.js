@@ -106,6 +106,8 @@ function uploadFile(file) {
     const errorDiv = document.getElementById('upload-error');
     const fnameEl  = document.getElementById('progress-filename');
     const statusEl = document.getElementById('progress-status');
+    const barEl    = document.getElementById('upload-progress-bar');
+    const estEl    = document.getElementById('progress-estimate');
     if (!prompt || !progress || !errorDiv) return;
 
     prompt.classList.add('d-none');
@@ -113,28 +115,67 @@ function uploadFile(file) {
     progress.classList.remove('d-none');
     if (fnameEl) fnameEl.textContent = file.name;
     if (statusEl) statusEl.textContent = 'Uploading…';
+    if (barEl) barEl.style.width = '0%';
+    if (estEl) estEl.textContent = '';
 
-    const fd = new FormData();
+    // Rough estimate: ~2s per MB on Render free tier, minimum 8s
+    const estAnalysisSec = Math.max(8, Math.round(file.size / (1024 * 1024) * 2));
+
+    const setBar = pct => { if (barEl) barEl.style.width = Math.min(100, Math.max(0, pct)) + '%'; };
+
+    const showError = msg => {
+        progress.classList.add('d-none');
+        errorDiv.classList.remove('d-none');
+        const el = document.getElementById('error-message');
+        if (el) el.textContent = msg;
+    };
+
+    const startAnalysisProgress = jobId => {
+        if (statusEl) statusEl.textContent = 'Analyzing…';
+        setBar(45);
+        let elapsed = 0;
+        const timer = setInterval(() => {
+            elapsed++;
+            // Slides from 45 → 92 over estAnalysisSec seconds
+            setBar(45 + Math.min(47, (elapsed / estAnalysisSec) * 47));
+            const rem = Math.max(0, estAnalysisSec - elapsed);
+            if (estEl) estEl.textContent = rem > 2 ? `~${rem}s remaining` : 'Almost done…';
+        }, 1000);
+
+        pollJob(jobId, null, 1500, 300_000)
+            .then(id => {
+                clearInterval(timer);
+                setBar(100);
+                if (statusEl) statusEl.textContent = 'Done!';
+                if (estEl) estEl.textContent = '';
+                setTimeout(() => { window.location.href = 'results.html?id=' + encodeURIComponent(id); }, 300);
+            })
+            .catch(err => { clearInterval(timer); showError(err.message); });
+    };
+
+    // Use XHR so we can track upload progress
+    const xhr = new XMLHttpRequest();
+    const fd  = new FormData();
     fd.append('file', file);
 
-    fetch(getApiBase() + '/api/analyze/guest', { method: 'POST', body: fd, headers: apiHeaders() })
-        .then(resp => {
-            if (!resp.ok) return resp.json().then(d => { throw new Error(d.detail || 'Upload failed'); });
-            return resp.json();
-        })
-        .then(data => {
-            if (statusEl) statusEl.textContent = 'Analyzing…';
-            return pollJob(data.id, statusEl);
-        })
-        .then(id => {
-            window.location.href = 'results.html?id=' + encodeURIComponent(id);
-        })
-        .catch(err => {
-            progress.classList.add('d-none');
-            errorDiv.classList.remove('d-none');
-            const msgEl = document.getElementById('error-message');
-            if (msgEl) msgEl.textContent = err.message;
-        });
+    xhr.upload.onprogress = e => {
+        if (e.lengthComputable) setBar((e.loaded / e.total) * 40);
+    };
+
+    xhr.onload = () => {
+        if (xhr.status < 200 || xhr.status >= 300) {
+            let msg = 'Upload failed';
+            try { msg = JSON.parse(xhr.responseText).detail || msg; } catch {}
+            return showError(msg);
+        }
+        const data = JSON.parse(xhr.responseText);
+        startAnalysisProgress(data.id);
+    };
+
+    xhr.onerror = () => showError('Network error — check your connection and try again');
+
+    xhr.open('POST', getApiBase() + '/api/analyze/guest');
+    xhr.send(fd);
 }
 
 function pollJob(jobId, statusEl, interval = 1500, maxWait = 300_000) {
@@ -1663,6 +1704,6 @@ function showGuestBanner(expiresAt) {
         const exp = new Date(expiresAt);
         expMsg = ` <span class="text-secondary small">(expires ${exp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})</span>`;
     }
-    banner.innerHTML = `<i class="bi bi-stars"></i> <strong>Want more?</strong> Persistent results, saved history, suppression rules &amp; team features are available on the full platform.${expMsg} Contact <a href="mailto:nirkacher@gmail.com" class="alert-link fw-semibold">nirkacher@gmail.com</a> to request access.`;
+    banner.innerHTML = `<i class="bi bi-stars"></i> <strong>Want more?</strong> Persistent results, saved history, suppression rules &amp; team features available on the full platform. Contact <a href="mailto:nirkacher@gmail.com" class="alert-link fw-semibold">nirkacher@gmail.com</a> to request access.${expMsg}`;
     banner.classList.remove('d-none');
 }

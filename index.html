@@ -54,12 +54,15 @@
                             </div>
 
                             <!-- Uploading state -->
-                            <div id="upload-progress" class="d-none">
-                                <div class="spinner-border text-info mb-3" role="status">
-                                    <span class="visually-hidden">Analyzing...</span>
+                            <div id="upload-progress" class="d-none" style="width:100%">
+                                <p class="mb-2 fs-5" id="progress-filename"></p>
+                                <div class="progress mb-2" style="height:6px;border-radius:3px;background:rgba(255,255,255,0.08)">
+                                    <div id="upload-progress-bar"
+                                         class="progress-bar bg-info"
+                                         role="progressbar" style="width:0%;transition:width 0.4s ease"></div>
                                 </div>
-                                <p class="mb-1 fs-5" id="progress-filename"></p>
-                                <p class="text-secondary small" id="progress-status">Uploading and analyzing...</p>
+                                <p class="text-secondary small mb-1" id="progress-status">Uploading…</p>
+                                <p class="text-secondary small mb-0" id="progress-estimate" style="font-size:0.75rem"></p>
                             </div>
 
                             <!-- Error state -->

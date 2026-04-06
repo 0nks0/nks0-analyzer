@@ -197,8 +197,15 @@
                         </div>
                     </div>
 
-                    <!-- Network graph (hidden until data) -->
-                    <div id="graph-panel" class="card nks-card mb-4 d-none">
+                </div><!-- /right col -->
+            </div><!-- /main row -->
+
+            <!-- Network Flow + Geo Map — equal-width bottom row -->
+            <div class="row g-4 mt-0">
+
+                <!-- Network graph (hidden until data) -->
+                <div id="graph-panel" class="col-lg-6 d-none">
+                    <div class="card nks-card h-100">
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <span><i class="bi bi-diagram-2"></i> Network Flow</span>
                             <span class="text-secondary small" id="graph-node-count"></span>
@@ -208,20 +215,22 @@
                             <div id="network-graph-container" class="mt-1"></div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Geo map (hidden until coordinates available) -->
-                    <div id="geo-map-panel" class="card nks-card mb-4 d-none">
+                <!-- Geo map (hidden until coordinates available) -->
+                <div id="geo-map-panel" class="col-lg-6 d-none">
+                    <div class="card nks-card h-100">
                         <div class="card-header d-flex justify-content-between align-items-center">
                             <span><i class="bi bi-globe"></i> Geo Map</span>
                             <span class="text-secondary small" id="geo-map-count"></span>
                         </div>
                         <div class="card-body p-0">
-                            <div id="geo-map" style="height:240px;border-radius:0 0 8px 8px"></div>
+                            <div id="geo-map" style="height:320px;border-radius:0 0 8px 8px"></div>
                         </div>
                     </div>
+                </div>
 
-                </div><!-- /right col -->
-            </div><!-- /row -->
+            </div><!-- /bottom row -->
         </div><!-- /results-content -->
 
         <!-- Error -->
