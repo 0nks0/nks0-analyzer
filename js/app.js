@@ -6,12 +6,18 @@
 // ─── Backend URL ──────────────────────────────────────────────────────────────
 
 const API_BASE = 'https://nks0-api.onrender.com';
+const APP_VERSION = '1.2.4'; // bump this when releasing a new version
 function getApiBase() { return API_BASE; }
 function apiHeaders() { return {}; }
 
 // ─── Connection status ────────────────────────────────────────────────────────
 
 function initConnectionBar() {
+    // Inject version into footer and navbar wherever present
+    ['footer-version', 'nav-version'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = 'v' + APP_VERSION;
+    });
     checkApiStatus();
     setInterval(checkApiStatus, 30_000);
 }
@@ -1496,6 +1502,7 @@ function renderNetworkGraph(connections, alerts, talkers) {
     if (!panel || !canvas || !container) return;
     if (!connections || !connections.length) { panel.classList.add('d-none'); return; }
     panel.classList.remove('d-none');
+    void panel.offsetHeight; // force synchronous reflow so clientWidth is correct
 
     const alertIpSev = {};
     const SEV_RANK   = { Critical: 5, High: 4, Medium: 3, Low: 2, Info: 1 };
@@ -1523,7 +1530,10 @@ function renderNetworkGraph(connections, alerts, talkers) {
     const SEV_FILL  = { Critical: '#ff6e40', High: '#f85149', Medium: '#d29922', Low: '#58a6ff', Info: '#3fb950' };
     const DEF_FILL  = '#4d5562';
     const NODE_R    = 6, LANE_PAD = 55;
-    const W         = canvas.parentElement.clientWidth || 320;
+    const W         = canvas.parentElement.clientWidth
+                      || canvas.closest('.col-12')?.clientWidth
+                      || canvas.closest('.card-body')?.clientWidth
+                      || (window.innerWidth - 40);
     const ROWS      = Math.max(srcList.length, dstList.length);
     const ROW_H     = Math.max(22, Math.min(32, (280 - 30) / Math.max(ROWS, 1)));
     const H         = Math.max(80, 30 + ROWS * ROW_H + 10);
