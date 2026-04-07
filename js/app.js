@@ -1720,8 +1720,38 @@ function showGuestBanner(expiresAt) {
     let expMsg = '';
     if (expiresAt) {
         const exp = new Date(expiresAt);
-        expMsg = ` <span class="text-secondary small">(expires ${exp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})</span>`;
+        const expStr = escapeHtml(exp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        expMsg = ` <span class="text-secondary small">(expires ${expStr})</span>`;
     }
     banner.innerHTML = `<i class="bi bi-stars"></i> <strong>Want more?</strong> Persistent results, saved history, suppression rules &amp; team features available on the full platform. Contact <a href="mailto:nirkacher@gmail.com" class="alert-link fw-semibold">nirkacher@gmail.com</a> to request access.${expMsg}`;
     banner.classList.remove('d-none');
 }
+
+
+// ─── Auto-init (no inline scripts in HTML needed) ─────────────────────────────
+
+document.addEventListener('DOMContentLoaded', function () {
+    initConnectionBar();
+
+    // index.html — upload zone present
+    if (document.getElementById('upload-zone')) {
+        initUpload();
+        loadRecentResults();
+        var resetBtn = document.getElementById('reset-upload-btn');
+        if (resetBtn) resetBtn.addEventListener('click', resetUpload);
+    }
+
+    // results.html — loading-state container present
+    if (document.getElementById('loading-state')) {
+        var params = new URLSearchParams(window.location.search);
+        var analysisId = params.get('id');
+        if (analysisId) {
+            loadResults(analysisId);
+        } else {
+            document.getElementById('loading-state').classList.add('d-none');
+            document.getElementById('error-state').classList.remove('d-none');
+            var errEl = document.getElementById('results-error-message');
+            if (errEl) errEl.textContent = 'No analysis ID in URL.';
+        }
+    }
+});
