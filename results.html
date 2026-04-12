@@ -121,12 +121,12 @@
                                     <span class="nks-count-badge ms-1" id="alert-card-count"></span>
                                 </span>
                                 <div class="d-flex gap-1">
-                                    <button class="btn btn-sm btn-outline-secondary py-0 px-2"
-                                            onclick="expandAllAlerts()" title="Expand all">
+                                    <button class="btn btn-sm btn-outline-secondary py-0 px-2" id="expand-all-btn"
+                                            title="Expand all">
                                         <i class="bi bi-arrows-expand"></i>
                                     </button>
-                                    <button class="btn btn-sm btn-outline-secondary py-0 px-2"
-                                            onclick="collapseAllAlerts()" title="Collapse all">
+                                    <button class="btn btn-sm btn-outline-secondary py-0 px-2" id="collapse-all-btn"
+                                            title="Collapse all">
                                         <i class="bi bi-arrows-collapse"></i>
                                     </button>
                                 </div>
@@ -137,10 +137,9 @@
                                     <div class="input-group input-group-sm" style="max-width:220px">
                                         <input type="search" id="alert-ip-search"
                                             class="form-control form-control-sm nks-alert-search"
-                                            placeholder="Search IP, category…"
-                                            oninput="onIpSearchInput(this.value)">
+                                            placeholder="Search IP, category…">
                                         <button class="btn btn-outline-secondary d-none" id="search-clear-btn"
-                                                onclick="clearIpSearch()" type="button">
+                                                type="button">
                                             <i class="bi bi-x"></i>
                                         </button>
                                     </div>

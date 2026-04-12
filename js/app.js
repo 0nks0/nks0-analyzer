@@ -319,12 +319,12 @@ function renderSeverityBadges(counts) {
     const order = ['Critical', 'High', 'Medium', 'Low', 'Info'];
     const total = order.reduce((s, sev) => s + (counts[sev] || 0), 0);
 
-    let html = `<button class="nks-sev-tab${_activeSevTab === 'All' ? ' active' : ''}" onclick="filterBySev('All')">All <span class="nks-sev-tab-count">${total}</span></button>`;
+    let html = `<button class="nks-sev-tab${_activeSevTab === 'All' ? ' active' : ''}" data-sev="All">All <span class="nks-sev-tab-count">${total}</span></button>`;
     order.forEach(sev => {
         const n = counts[sev] || 0;
         if (!n) return;
         const active = _activeSevTab === sev ? ' active' : '';
-        html += `<button class="nks-sev-tab nks-sev-${sevClass(sev)}${active}" onclick="filterBySev('${sev}')">${escapeHtml(sev)} <span class="nks-sev-tab-count">${n}</span></button>`;
+        html += `<button class="nks-sev-tab nks-sev-${sevClass(sev)}${active}" data-sev="${escapeHtml(sev)}">${escapeHtml(sev)} <span class="nks-sev-tab-count">${n}</span></button>`;
     });
     el.innerHTML = html;
 }
@@ -368,8 +368,7 @@ function renderFilterBar(alerts) {
         .sort((a, b) => b[1] - a[1])
         .map(([cat, n]) => {
             const active = _checkedCats.has(cat) ? ' active' : '';
-            return `<button class="nks-cat-pill${active}" data-cat="${escapeHtml(cat)}"
-                        onclick="toggleCat(this.dataset.cat, !_checkedCats.has(this.dataset.cat))">${escapeHtml(cat)}<span class="nks-pill-count">${n}</span></button>`;
+            return `<button class="nks-cat-pill${active}" data-cat="${escapeHtml(cat)}">${escapeHtml(cat)}<span class="nks-pill-count">${n}</span></button>`;
         }).join('');
 
     bar.innerHTML = `<div class="d-flex flex-wrap gap-1 align-items-center">${pills}<span class="nks-filter-count ms-2" id="filter-count"></span></div>`;
@@ -510,7 +509,7 @@ function renderAlertList(alerts) {
             ? `<div class="nks-alert-details">${richHtml}${tagsHtml}${seeAlsoHtml}</div>`
             : '';
 
-        return `<div class="nks-alert-item" data-idx="${idx}" data-sev="${escapeHtml(alert.severity)}" onclick="this.classList.toggle('expanded')">
+        return `<div class="nks-alert-item" data-idx="${idx}" data-sev="${escapeHtml(alert.severity)}">
             <div class="d-flex align-items-start gap-2" style="padding-right:1.4rem">
                 <span class="nks-sev-pill ${sev}">${escapeHtml(alert.severity)}</span>
                 <div class="flex-grow-1" style="min-width:0">
@@ -533,7 +532,7 @@ function _renderSeeAlso(alert, alertIdx, seeAlsoMap) {
     if (!related.length) return '';
     const pills = related.slice(0, 6).map(r =>
         `<span class="nks-see-also-pill nks-sev-pill ${sevClass(r.severity)}"
-              onclick="event.stopPropagation(); scrollToAlert(${r.idx})">${escapeHtml(r.category)}</span>`
+              data-idx="${r.idx}">${escapeHtml(r.category)}</span>`
     ).join('');
     return `<div class="nks-see-also"><i class="bi bi-link-45deg"></i> Same host: ${pills}</div>`;
 }
@@ -743,7 +742,7 @@ function _renderCredentials(alert) {
                 <span class="nks-cred-value" data-plain="${escapeHtml(String(row.value))}" data-masked="${escapeHtml(masked)}" id="${uid}">
                     ${escapeHtml(row.sensitive ? masked : String(row.value))}
                 </span>
-                ${row.sensitive ? `<button class="nks-reveal-btn ms-1" onclick="event.stopPropagation();_toggleReveal('${uid}',this)">reveal</button>` : ''}
+                ${row.sensitive ? `<button class="nks-reveal-btn ms-1" data-uid="${uid}">reveal</button>` : ''}
             </td></tr>`;
         });
     });
@@ -1391,7 +1390,7 @@ function renderHostsTable(talkers) {
 
     let html = ipv4.map(rowHtml).join('');
     if (ipv6.length) {
-        html += `<tr id="ipv6-toggle-row" onclick="toggleIpv6Rows()" style="cursor:pointer">
+        html += `<tr id="ipv6-toggle-row" style="cursor:pointer">
             <td colspan="4" class="text-secondary" style="font-size:0.75rem;padding:0.3rem 0.75rem">
                 <i class="bi bi-chevron-right" id="ipv6-chevron" style="font-size:0.65rem"></i>
                 ${ipv6.length} IPv6 host${ipv6.length > 1 ? 's' : ''} (click to expand)
@@ -1486,7 +1485,7 @@ function renderTimeline(alerts) {
             svgContent += `<rect x="${x1.toFixed(1)}" y="${(cy - 2).toFixed(1)}" width="${(x2 - x1).toFixed(1)}" height="4" fill="${col}" opacity="0.25" rx="2"/>`;
         }
         svgContent += `<circle cx="${x1.toFixed(1)}" cy="${cy.toFixed(1)}" r="4.5" fill="${col}" opacity="0.85"
-            style="cursor:pointer" onclick="scrollToAlert(${i})" title="${tip}"/>`;
+            style="cursor:pointer" data-alert-idx="${i}" title="${tip}"/>`;
     });
 
     svgEl.setAttribute('height', HEIGHT);
@@ -1728,6 +1727,68 @@ function showGuestBanner(expiresAt) {
 }
 
 
+// ─── Results page event delegation (CSP-safe, no inline handlers) ─────────────
+
+function initResultsDelegation() {
+    // Static buttons
+    const expandBtn = document.getElementById('expand-all-btn');
+    if (expandBtn) expandBtn.addEventListener('click', expandAllAlerts);
+    const collapseBtn = document.getElementById('collapse-all-btn');
+    if (collapseBtn) collapseBtn.addEventListener('click', collapseAllAlerts);
+    const searchInput = document.getElementById('alert-ip-search');
+    if (searchInput) searchInput.addEventListener('input', e => onIpSearchInput(e.target.value));
+    const clearBtn = document.getElementById('search-clear-btn');
+    if (clearBtn) clearBtn.addEventListener('click', clearIpSearch);
+
+    // Severity tab buttons (container innerHTML is replaced on re-render, delegation survives)
+    const sevBadges = document.getElementById('severity-badges');
+    if (sevBadges) sevBadges.addEventListener('click', e => {
+        const btn = e.target.closest('.nks-sev-tab');
+        if (btn) filterBySev(btn.dataset.sev);
+    });
+
+    // Category filter pills
+    const filterBar = document.getElementById('alert-filter-bar');
+    if (filterBar) filterBar.addEventListener('click', e => {
+        const btn = e.target.closest('.nks-cat-pill');
+        if (btn) toggleCat(btn.dataset.cat, !_checkedCats.has(btn.dataset.cat));
+    });
+
+    // Alerts container — expand/collapse, see-also cross-links, reveal buttons
+    const alertsContainer = document.getElementById('alerts-container');
+    if (alertsContainer) {
+        alertsContainer.addEventListener('click', e => {
+            const revealBtn = e.target.closest('.nks-reveal-btn');
+            if (revealBtn) {
+                e.stopPropagation();
+                _toggleReveal(revealBtn.dataset.uid, revealBtn);
+                return;
+            }
+            const seeAlso = e.target.closest('.nks-see-also-pill');
+            if (seeAlso) {
+                e.stopPropagation();
+                scrollToAlert(Number(seeAlso.dataset.idx));
+                return;
+            }
+            const item = e.target.closest('.nks-alert-item');
+            if (item) item.classList.toggle('expanded');
+        });
+    }
+
+    // Hosts table — IPv6 toggle row
+    const hostsBody = document.getElementById('hosts-table-body');
+    if (hostsBody) hostsBody.addEventListener('click', e => {
+        if (e.target.closest('#ipv6-toggle-row')) toggleIpv6Rows();
+    });
+
+    // Timeline SVG circles
+    const timelineSvg = document.getElementById('timeline-svg');
+    if (timelineSvg) timelineSvg.addEventListener('click', e => {
+        const circle = e.target.closest('circle');
+        if (circle && circle.dataset.alertIdx != null) scrollToAlert(Number(circle.dataset.alertIdx));
+    });
+}
+
 // ─── Auto-init (no inline scripts in HTML needed) ─────────────────────────────
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -1743,6 +1804,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // results.html — loading-state container present
     if (document.getElementById('loading-state')) {
+        initResultsDelegation();
         var params = new URLSearchParams(window.location.search);
         var analysisId = params.get('id');
         if (analysisId) {
