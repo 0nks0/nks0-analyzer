@@ -615,6 +615,10 @@ function _renderAlertBody(alert) {
         case 'TorTraffic':            html = _renderTorTraffic(alert); break;
         case 'LargeDnsFlow':          html = _renderLargeDnsFlow(alert); break;
         case 'SshSpray':              html = _renderSshSpray(alert); break;
+        case 'LdapEnum':              html = _renderLdapEnum(alert); break;
+        case 'KerberosRoasting':      html = _renderKerberosRoasting(alert); break;
+        case 'WinRmExec':             html = _renderWinRmExec(alert); break;
+        case 'DnsAdEnum':             html = _renderDnsAdEnum(alert); break;
         case 'Correlation':
         case 'ActiveExfiltration':
         case 'FullAttackChain':
@@ -1149,6 +1153,111 @@ function _renderSshSpray(alert) {
     return html;
 }
 
+// ── LdapEnum ──────────────────────────────────────────────────────────────────
+
+function _renderLdapEnum(alert) {
+    const d = alert.details || {};
+    let html = `<div class="nks-stat-row">
+        ${_chip(d.total_flows || 0, 'LDAP flows')}
+        ${_chip(d.threshold   || 0, 'Threshold')}
+    </div>`;
+    html += `<div class="nks-detail-section">
+        <div class="nks-detail-label">Enumerator → Domain Controller</div>
+        <div>${_ipLabel(d.src_ip)} <span class="text-secondary">→</span> ${_ipLabel(d.dst_ip)}</div>
+    </div>`;
+    const ports = d.ports || {};
+    const portEntries = Object.entries(ports);
+    if (portEntries.length) {
+        html += `<div class="nks-detail-section"><div class="nks-detail-label">Ports used</div><div class="nks-port-grid">`;
+        portEntries.forEach(([name, n]) => {
+            html += `<span class="nks-port-badge">${escapeHtml(name)} <span style="opacity:.7">${n}</span></span>`;
+        });
+        html += '</div></div>';
+    }
+    html += _mitreHtml(d.mitre);
+    return html;
+}
+
+// ── KerberosRoasting ──────────────────────────────────────────────────────────
+
+function _renderKerberosRoasting(alert) {
+    const d = alert.details || {};
+    let html = `<div class="nks-stat-row">
+        ${_chip(d.tcp_flows || 0, 'TCP flows (roasting)')}
+        ${_chip(d.udp_flows || 0, 'UDP flows (enum)')}
+        ${_chip(d.tcp_threshold || 0, 'TCP threshold')}
+    </div>`;
+    html += `<div class="nks-detail-section">
+        <div class="nks-detail-label">Attacker → Domain Controller</div>
+        <div>${_ipLabel(d.src_ip)} <span class="text-secondary">→</span> ${_ipLabel(d.dst_ip)}:<strong>88</strong></div>
+    </div>`;
+    if (d.attack_type) {
+        html += `<div class="nks-detail-section">
+            <div class="nks-detail-label">Attack type</div>
+            <div style="font-size:0.82rem">${escapeHtml(d.attack_type)}</div>
+        </div>`;
+    }
+    html += _mitreHtml(d.mitre);
+    return html;
+}
+
+// ── WinRmExec ─────────────────────────────────────────────────────────────────
+
+function _renderWinRmExec(alert) {
+    const d = alert.details || {};
+    const commands = d.commands_seen || [];
+    let html = `<div class="nks-stat-row">
+        ${_chip(d.flow_count || 0, 'WinRM flows')}
+        ${_chip(d.protocol || 'WinRM', 'Protocol')}
+        ${d.lateral ? _chip('Yes', 'Lateral') : ''}
+    </div>`;
+    html += `<div class="nks-detail-section">
+        <div class="nks-detail-label">Source → Target</div>
+        <div>${_ipLabel(d.src_ip)} <span class="text-secondary">→</span> ${_ipLabel(d.dst_ip)}:<strong>${d.dst_port || '?'}</strong></div>
+    </div>`;
+    if (commands.length) {
+        html += `<div class="nks-detail-section"><div class="nks-detail-label">Commands / tools detected in payload</div><div class="nks-port-grid">`;
+        commands.forEach(cmd => {
+            const isDanger = ['mimikatz','sekurlsa','lsadump'].includes(cmd);
+            html += `<span class="nks-port-badge" style="${isDanger ? 'background:rgba(255,110,64,0.15);color:#ff6e40;border-color:rgba(255,110,64,0.3)' : ''}">${escapeHtml(cmd)}</span>`;
+        });
+        html += '</div></div>';
+    }
+    html += _mitreHtml(d.mitre);
+    return html;
+}
+
+// ── DnsAdEnum ─────────────────────────────────────────────────────────────────
+
+function _renderDnsAdEnum(alert) {
+    const d = alert.details || {};
+    const queries  = d.sample_queries  || [];
+    const patterns = d.patterns_seen   || [];
+    let html = `<div class="nks-stat-row">
+        ${_chip(d.query_count   || 0, 'AD DNS queries')}
+        ${_chip(d.pattern_count || 0, 'Record types')}
+        ${_chip(d.threshold     || 0, 'Threshold')}
+    </div>`;
+    html += `<div class="nks-detail-section">
+        <div class="nks-detail-label">Source</div>
+        <div>${_ipLabel(d.src_ip)}</div>
+    </div>`;
+    if (patterns.length) {
+        html += `<div class="nks-detail-section"><div class="nks-detail-label">Record types queried</div><div class="nks-port-grid">`;
+        patterns.forEach(p => { html += `<span class="nks-port-badge" style="background:rgba(188,140,255,0.10);color:#bc8cff;border-color:rgba(188,140,255,0.25)">${escapeHtml(p)}</span>`; });
+        html += '</div></div>';
+    }
+    if (queries.length) {
+        html += `<div class="nks-detail-section"><div class="nks-detail-label">Sample queries</div>`;
+        queries.forEach(q => {
+            html += `<div class="nks-domain-row"><span class="nks-domain-name">${escapeHtml(q)}</span></div>`;
+        });
+        html += '</div>';
+    }
+    html += _mitreHtml(d.mitre);
+    return html;
+}
+
 // ── Default fallback ──────────────────────────────────────────────────────────
 
 function _renderDefault(alert) {
@@ -1211,6 +1320,10 @@ const _REMEDIATION = {
     NetworkMitm: 'HIGH: MITM attack in progress. Rotate ALL credentials on affected segment. Remove the rogue device.',
     AggressiveRecon: 'Block the scanning host. Review firewall rules. Limit internal reconnaissance reach.',
     MultiVectorRecon: 'Block the source host. This host has performed multi-type scanning — active network mapping.',
+    LdapEnum: 'ISOLATE or investigate the querying host — this is the signature of BloodHound/ADExplorer directory dumps. Reset the AD read account if anonymous LDAP is enabled. Enable LDAP signing and channel binding.',
+    KerberosRoasting: 'Audit all service accounts with SPNs. Enforce long, random service account passwords (>25 chars) or migrate to Group Managed Service Accounts (gMSA). Investigate offline cracking activity.',
+    WinRmExec: 'Review WinRM access policy. Disable WinRM where not required (GPO). Check for persistence (scheduled tasks, registry run keys, new services) on the target host. Rotate all credentials.',
+    DnsAdEnum: 'Investigate the querying host for recon tooling (BloodHound, CrackMapExec, Impacket). Check for follow-up LDAP/Kerberos activity. Consider DNS query logging to a SIEM.',
 };
 
 function _remediationHtml(category) {
