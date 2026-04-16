@@ -619,6 +619,11 @@ function _renderAlertBody(alert) {
         case 'KerberosRoasting':      html = _renderKerberosRoasting(alert); break;
         case 'WinRmExec':             html = _renderWinRmExec(alert); break;
         case 'DnsAdEnum':             html = _renderDnsAdEnum(alert); break;
+        case 'DnsTunnel':             html = _renderDnsTunnel(alert); break;
+        case 'HttpDoS':               html = _renderHttpDoS(alert); break;
+        case 'DhcpAbuse':             html = _renderDhcpAbuse(alert); break;
+        case 'Ipv6Tunnel':            html = _renderIpv6Tunnel(alert); break;
+        case 'CredentialStuffing':    html = _renderCredentialStuffing(alert); break;
         case 'Correlation':
         case 'ActiveExfiltration':
         case 'FullAttackChain':
@@ -1258,6 +1263,163 @@ function _renderDnsAdEnum(alert) {
     return html;
 }
 
+// ── DnsTunnel ─────────────────────────────────────────────────────────────────
+
+function _renderDnsTunnel(alert) {
+    const d = alert.details || {};
+    const samples = d.sample_labels || [];
+    const sigs    = d.signals       || {};
+    let html = `<div class="nks-stat-row">
+        ${_chip(d.suspicious_label_count || 0, 'Suspicious labels')}
+        ${_chip(d.total_dns_queries      || 0, 'DNS queries')}
+        ${_chip(d.max_unique_subdomains  || 0, 'Unique subdomains')}
+    </div>`;
+    html += `<div class="nks-detail-section">
+        <div class="nks-detail-label">Source</div>
+        <div>${_ipLabel(d.src_ip)}</div>`;
+    if (d.top_parent_domain) html += `<div class="text-secondary" style="font-size:0.78rem">Top parent domain: <strong>${escapeHtml(d.top_parent_domain)}</strong></div>`;
+    html += '</div>';
+    // Signals breakdown
+    const sigLabels = {long_labels:'Long labels',high_query_rate:'High query rate',high_subdomain_count:'High unique subdomains'};
+    const sigEntries = Object.entries(sigs).filter(([,v]) => v);
+    if (sigEntries.length) {
+        html += `<div class="nks-detail-section"><div class="nks-detail-label">Triggered signals</div><div class="nks-port-grid">`;
+        sigEntries.forEach(([k]) => {
+            html += `<span class="nks-port-badge" style="background:rgba(255,88,88,0.10);color:#ff5858;border-color:rgba(255,88,88,0.25)">${escapeHtml(sigLabels[k] || k)}</span>`;
+        });
+        html += '</div></div>';
+    }
+    // Sample labels table
+    if (samples.length) {
+        html += `<div class="nks-detail-section"><div class="nks-detail-label">Suspicious label samples</div>
+            <table style="width:100%;font-size:0.78rem;border-collapse:collapse">
+            <thead><tr style="color:var(--nks-muted)"><th style="text-align:left;padding:2px 4px">Label</th><th style="padding:2px 4px">Len</th><th style="padding:2px 4px">Entropy</th></tr></thead><tbody>`;
+        samples.forEach(s => {
+            html += `<tr><td style="padding:2px 4px;word-break:break-all">${escapeHtml(s.label||'')}</td>
+                <td style="text-align:center;padding:2px 4px">${s.length||0}</td>
+                <td style="text-align:center;padding:2px 4px">${typeof s.entropy==='number'?s.entropy.toFixed(2):'—'}</td></tr>`;
+        });
+        html += '</tbody></table></div>';
+    }
+    html += _mitreHtml(d.mitre);
+    return html;
+}
+
+// ── HttpDoS ───────────────────────────────────────────────────────────────────
+
+function _renderHttpDoS(alert) {
+    const d = alert.details || {};
+    const ratio = typeof d.slow_connection_ratio === 'number' ? (d.slow_connection_ratio * 100).toFixed(1) + '%' : '—';
+    let html = `<div class="nks-stat-row">
+        ${_chip(d.slow_connection_count  || 0, 'Slow connections')}
+        ${_chip(d.total_connection_count || 0, 'Total connections')}
+        ${_chip(ratio, 'Slow ratio')}
+    </div>`;
+    html += `<div class="nks-detail-section">
+        <div class="nks-detail-label">Attack path</div>
+        <div>${_ipLabel(d.src_ip)} → ${_ipLabel(d.dst_ip)}${d.dst_port ? ':<strong>' + d.dst_port + '</strong>' : ''}</div>
+    </div>`;
+    if (d.max_connection_duration_sec) {
+        html += `<div class="nks-detail-section"><div class="nks-detail-label">Longest connection</div>
+            <div>${d.max_connection_duration_sec}s (threshold: ${d.threshold_min_duration_sec || '—'}s, max rate: ${d.threshold_max_rate_bps || '—'} B/s)</div>
+        </div>`;
+    }
+    html += _mitreHtml(d.mitre);
+    return html;
+}
+
+// ── DhcpAbuse ─────────────────────────────────────────────────────────────────
+
+function _renderDhcpAbuse(alert) {
+    const d = alert.details || {};
+    const isRogue = d.pattern === 'rogue_server';
+    let html = `<div class="nks-stat-row">
+        ${isRogue
+            ? _chip(d.server_count || 0, 'Rogue servers')
+            : _chip(d.unique_client_count || 0, 'Unique clients')}
+        ${_chip(isRogue ? (d.expected_max || 1) : (d.threshold || 0), isRogue ? 'Expected max servers' : 'Threshold')}
+    </div>`;
+    html += `<div class="nks-detail-section">
+        <div class="nks-detail-label">Pattern</div>
+        <div>${isRogue
+            ? '<span style="color:#ff5858;font-weight:600">Rogue DHCP Server</span> — multiple hosts answering DHCP OFFER (MITM risk)'
+            : '<span style="color:#ff5858;font-weight:600">DHCP Starvation</span> — flood of DISCOVER packets from many unique MACs'
+        }</div>
+    </div>`;
+    if (isRogue && Array.isArray(d.dhcp_servers) && d.dhcp_servers.length) {
+        html += `<div class="nks-detail-section"><div class="nks-detail-label">Rogue server IPs</div><div class="nks-port-grid">`;
+        d.dhcp_servers.forEach(ip => { html += `<span class="nks-port-badge" style="background:rgba(255,88,88,0.10);color:#ff5858;border-color:rgba(255,88,88,0.25)">${escapeHtml(ip)}</span>`; });
+        html += '</div></div>';
+    } else if (!isRogue && Array.isArray(d.sample_clients) && d.sample_clients.length) {
+        html += `<div class="nks-detail-section"><div class="nks-detail-label">Sample client IPs</div><div class="nks-port-grid">`;
+        d.sample_clients.forEach(ip => { html += `<span class="nks-port-badge">${escapeHtml(ip)}</span>`; });
+        html += '</div></div>';
+    }
+    html += _mitreHtml(d.mitre);
+    return html;
+}
+
+// ── Ipv6Tunnel ────────────────────────────────────────────────────────────────
+
+function _renderIpv6Tunnel(alert) {
+    const d = alert.details || {};
+    const mechs = d.mechanisms || [];
+    const perMech = d.per_mechanism || {};
+    let html = `<div class="nks-stat-row">
+        ${_chip(d.total_flows  || 0, 'Tunneled flows')}
+        ${_chip(d.unique_peers || 0, 'Unique peers')}
+        ${_chip(mechs.length,        'Mechanisms')}
+    </div>`;
+    html += `<div class="nks-detail-section">
+        <div class="nks-detail-label">Source</div>
+        <div>${_ipLabel(d.src_ip)}</div>
+    </div>`;
+    if (mechs.length) {
+        html += `<div class="nks-detail-section"><div class="nks-detail-label">Tunnel mechanisms</div><div class="nks-port-grid">`;
+        mechs.forEach(m => { html += `<span class="nks-port-badge" style="background:rgba(188,140,255,0.10);color:#bc8cff;border-color:rgba(188,140,255,0.25)">${escapeHtml(m)}</span>`; });
+        html += '</div></div>';
+    }
+    const mechKeys = Object.keys(perMech);
+    if (mechKeys.length) {
+        html += `<div class="nks-detail-section"><div class="nks-detail-label">Breakdown</div>`;
+        mechKeys.forEach(m => {
+            const info = perMech[m] || {};
+            html += `<div class="nks-evidence-row">
+                <span class="nks-evidence-key">${escapeHtml(m)}</span>
+                <span class="nks-evidence-val">${info.flows||0} flows${info.peers ? ', ' + info.peers + ' peers' : ''}</span>
+            </div>`;
+        });
+        html += '</div>';
+    }
+    html += _mitreHtml(d.mitre);
+    return html;
+}
+
+// ── CredentialStuffing ────────────────────────────────────────────────────────
+
+function _renderCredentialStuffing(alert) {
+    const d = alert.details || {};
+    const targets = d.sample_targets || [];
+    const multiUa = d.ua_rotation_detected;
+    let html = `<div class="nks-stat-row">
+        ${_chip(d.total_auth_failures  || 0, 'Auth failures')}
+        ${_chip(d.unique_target_hosts  || 0, 'Target hosts')}
+        ${_chip(d.unique_user_agents   || 0, 'User-agents')}
+    </div>`;
+    html += `<div class="nks-detail-section">
+        <div class="nks-detail-label">Attacker</div>
+        <div>${_ipLabel(d.src_ip)}</div>`;
+    if (multiUa) html += `<div style="color:#ffaa33;font-size:0.78rem;margin-top:2px"><i class="bi bi-exclamation-triangle-fill"></i> User-agent rotation detected — automated tooling likely</div>`;
+    html += '</div>';
+    if (targets.length) {
+        html += `<div class="nks-detail-section"><div class="nks-detail-label">Sample targets</div><div class="nks-port-grid">`;
+        targets.forEach(t => { html += `<span class="nks-port-badge">${escapeHtml(t)}</span>`; });
+        html += '</div></div>';
+    }
+    html += _mitreHtml(d.mitre);
+    return html;
+}
+
 // ── Default fallback ──────────────────────────────────────────────────────────
 
 function _renderDefault(alert) {
@@ -1324,6 +1486,11 @@ const _REMEDIATION = {
     KerberosRoasting: 'Audit all service accounts with SPNs. Enforce long, random service account passwords (>25 chars) or migrate to Group Managed Service Accounts (gMSA). Investigate offline cracking activity.',
     WinRmExec: 'Review WinRM access policy. Disable WinRM where not required (GPO). Check for persistence (scheduled tasks, registry run keys, new services) on the target host. Rotate all credentials.',
     DnsAdEnum: 'Investigate the querying host for recon tooling (BloodHound, CrackMapExec, Impacket). Check for follow-up LDAP/Kerberos activity. Consider DNS query logging to a SIEM.',
+    DnsTunnel: 'HIGH: DNS tunneling is a strong exfiltration/C2 indicator. Isolate the source host. Sinkhole suspicious parent domains. Enable full DNS query logging to a SIEM.',
+    HttpDoS: 'Block the attacking source IP at the perimeter. Configure connection timeouts and max concurrent connections on the web server. Consider deploying a WAF or rate-limiter.',
+    DhcpAbuse: 'Investigate all hosts sending DHCP DISCOVER or OFFER traffic. Implement DHCP snooping on managed switches. Remove unauthorized DHCP servers from the network immediately.',
+    Ipv6Tunnel: 'Block IPv6 tunnel protocols (Teredo UDP:3544, 6to4 192.88.99.0/24, IP proto 41) at the perimeter if not authorized. Investigate the source host for C2 or policy bypass activity.',
+    CredentialStuffing: 'Block the attacking source IP. Enable CAPTCHA and MFA on web login forms. Consider rate-limiting authentication endpoints. Review for successful logins from the attacker IP.',
 };
 
 function _remediationHtml(category) {
