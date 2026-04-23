@@ -3,6 +3,9 @@
  * No authentication required — uses the guest analysis endpoint.
  */
 
+// Clickjacking protection — redirect top frame to this page if we're framed
+if (window.self !== window.top) { try { window.top.location = window.self.location; } catch (_) {} }
+
 // ─── Backend URL ──────────────────────────────────────────────────────────────
 
 const API_BASE = 'https://nks0-api.onrender.com';
