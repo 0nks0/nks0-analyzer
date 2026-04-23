@@ -30,9 +30,16 @@ function setApiStatus(text, kind) {
         (kind === 'ok' ? ' nks-status-ok' : kind === 'error' ? ' nks-status-error' : '');
 }
 
+function fetchWithTimeout(url, opts = {}, ms = 30_000) {
+    const ctrl = new AbortController();
+    const tid  = setTimeout(() => ctrl.abort(), ms);
+    return fetch(url, { ...opts, signal: ctrl.signal })
+        .finally(() => clearTimeout(tid));
+}
+
 function checkApiStatus() {
     setApiStatus('…', '');
-    fetch(API_BASE + '/api/health')
+    fetchWithTimeout(API_BASE + '/api/health', {}, 8_000)
         .then(r => r.ok ? r.json() : Promise.reject())
         .then(() => setApiStatus('Online', 'ok'))
         .catch(() => setApiStatus('Offline', 'error'));
@@ -192,7 +199,7 @@ function pollJob(jobId, statusEl, interval = 1500, maxWait = 300_000) {
             if (Date.now() > deadline) return reject(new Error('Analysis timed out — try a smaller file'));
             elapsed += interval;
             if (statusEl) statusEl.textContent = `Analyzing… (${Math.round(elapsed / 1000)}s)`;
-            fetch(getApiBase() + '/api/jobs/' + encodeURIComponent(jobId), { headers: apiHeaders() })
+            fetchWithTimeout(getApiBase() + '/api/jobs/' + encodeURIComponent(jobId), { headers: apiHeaders() }, 10_000)
                 .then(r => r.json())
                 .then(data => {
                     if (data.status === 'done') return resolve(jobId);
@@ -226,6 +233,7 @@ function loadRecentResults() {
 
 let _allAlerts     = [];
 let _rawData       = null;
+const _credStore   = new Map(); // sensitive plaintext — kept in JS memory, not DOM
 let _checkedSev    = new Set();
 let _checkedCats   = new Set();
 let _ipSearchQuery = '';
@@ -245,7 +253,7 @@ function loadResults(analysisId) {
     const contentEl = document.getElementById('results-content');
     const errorEl   = document.getElementById('error-state');
 
-    fetch(getApiBase() + '/api/results/' + encodeURIComponent(analysisId), { headers: apiHeaders() })
+    fetchWithTimeout(getApiBase() + '/api/results/' + encodeURIComponent(analysisId), { headers: apiHeaders() }, 30_000)
         .then(resp => {
             if (!resp.ok) throw new Error('Analysis not found (id: ' + analysisId + ')');
             return resp.json();
@@ -266,6 +274,7 @@ function loadResults(analysisId) {
 }
 
 function renderResults(data) {
+    _credStore.clear();
     const summary   = data.summary || {};
     const timeRange = summary.time_range || {};
 
@@ -725,11 +734,19 @@ function _maskSecret(val) {
 function _toggleReveal(id, btn) {
     const el = document.getElementById(id);
     if (!el) return;
-    const plain  = el.getAttribute('data-plain');
+    const plain  = _credStore.get(id);
+    if (!plain) return;
     const masked = el.getAttribute('data-masked');
-    const showing = el.textContent.trim() === plain;
-    el.textContent = showing ? masked : plain;
-    btn.textContent = showing ? 'reveal' : 'hide';
+    const showing = el.dataset.revealed === '1';
+    if (showing) {
+        el.textContent = masked;
+        el.dataset.revealed = '0';
+        btn.textContent = 'reveal';
+    } else {
+        el.textContent = plain;
+        el.dataset.revealed = '1';
+        btn.textContent = 'hide';
+    }
 }
 
 function _renderCredentials(alert) {
@@ -747,8 +764,9 @@ function _renderCredentials(alert) {
             const typeTd = j === 0 ? `<td rowspan="${rows.length}"><span class="nks-cred-type-badge">${escapeHtml(ctype)}</span></td>` : '';
             const masked = _maskSecret(String(row.value));
             const uid = `cv-${i}-${j}`;
+            if (row.sensitive) _credStore.set(uid, String(row.value));
             html += `<tr>${typeTd}<td class="text-secondary">${escapeHtml(row.label)}</td><td>
-                <span class="nks-cred-value" data-plain="${escapeHtml(String(row.value))}" data-masked="${escapeHtml(masked)}" id="${uid}">
+                <span class="nks-cred-value" data-masked="${escapeHtml(masked)}" data-revealed="0" id="${uid}">
                     ${escapeHtml(row.sensitive ? masked : String(row.value))}
                 </span>
                 ${row.sensitive ? `<button class="nks-reveal-btn ms-1" data-uid="${uid}">reveal</button>` : ''}
