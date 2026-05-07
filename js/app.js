@@ -9,7 +9,7 @@ if (window.self !== window.top) { try { window.top.location = window.self.locati
 // ─── Backend URL ──────────────────────────────────────────────────────────────
 
 const API_BASE = 'https://nks0-api.onrender.com';
-const APP_VERSION = '1.3.1'; // bump this when releasing a new version
+const APP_VERSION = '1.3.2'; // bump this when releasing a new version
 function getApiBase() { return API_BASE; }
 function apiHeaders() { return {}; }
 
@@ -164,6 +164,7 @@ function uploadFile(file) {
                 setBar(100);
                 if (statusEl) statusEl.textContent = 'Done!';
                 if (estEl) estEl.textContent = '';
+                saveRecentResult(id, file.name);
                 setTimeout(() => { window.location.href = 'results.html?id=' + encodeURIComponent(id); }, 300);
             })
             .catch(err => { clearInterval(timer); showError(err.message); });
@@ -228,8 +229,76 @@ function resetUpload() {
     if (els.input)    els.input.value = '';
 }
 
+// ─── Recent Analyses (localStorage) ──────────────────────────────────────────
+
+const _RECENT_KEY  = 'nks0_recent_analyses';
+const _RECENT_MAX  = 8;
+const _VALID_ID_RE = /^[a-zA-Z0-9_-]{4,128}$/;
+
+function _recentRead() {
+    try {
+        const raw = localStorage.getItem(_RECENT_KEY);
+        if (!raw) return [];
+        const arr = JSON.parse(raw);
+        if (!Array.isArray(arr)) return [];
+        return arr.filter(_validateRecentEntry);
+    } catch (_) { return []; }
+}
+
+function _recentWrite(entries) {
+    try { localStorage.setItem(_RECENT_KEY, JSON.stringify(entries)); } catch (_) {}
+}
+
+function _validateRecentEntry(e) {
+    return e && typeof e === 'object'
+        && typeof e.id === 'string' && _VALID_ID_RE.test(e.id)
+        && typeof e.filename === 'string'
+        && typeof e.ts === 'number' && isFinite(e.ts) && e.ts > 0;
+}
+
+function _relativeTime(ts) {
+    const diff = Date.now() - ts;
+    const m = Math.floor(diff / 60_000);
+    const h = Math.floor(diff / 3_600_000);
+    const d = Math.floor(diff / 86_400_000);
+    if (m < 1)  return 'Just now';
+    if (m < 60) return `${m}m ago`;
+    if (h < 24) return `${h}h ago`;
+    if (d < 30) return `${d}d ago`;
+    return new Date(ts).toLocaleDateString();
+}
+
+function saveRecentResult(id, filename) {
+    if (!_VALID_ID_RE.test(id)) return;
+    const safe = String(filename || 'unknown').substring(0, 120);
+    const entries = _recentRead().filter(e => e.id !== id); // dedupe
+    entries.unshift({ id, filename: safe, ts: Date.now() });
+    _recentWrite(entries.slice(0, _RECENT_MAX));
+}
+
+function clearRecentResults() {
+    try { localStorage.removeItem(_RECENT_KEY); } catch (_) {}
+    loadRecentResults();
+}
+
 function loadRecentResults() {
-    // Guest mode — no auth, no server-side history.
+    const wrapper = document.getElementById('recent-results');
+    const list    = document.getElementById('recent-list');
+    if (!wrapper || !list) return;
+
+    const entries = _recentRead();
+    if (!entries.length) { wrapper.classList.add('d-none'); return; }
+
+    wrapper.classList.remove('d-none');
+    list.innerHTML = entries.map(e => {
+        const fname = escapeHtml(e.filename || 'Unknown file');
+        const age   = escapeHtml(_relativeTime(e.ts));
+        // encodeURIComponent is safe — ID already validated by _VALID_ID_RE
+        return `<a class="nks-recent-item" href="results.html?id=${encodeURIComponent(e.id)}">
+            <span class="text-truncate" style="max-width:65%">${fname}</span>
+            <span class="text-secondary" style="font-size:0.75rem;white-space:nowrap">${age}</span>
+        </a>`;
+    }).join('');
 }
 
 // ─── Results page state ───────────────────────────────────────────────────────
@@ -2101,6 +2170,8 @@ document.addEventListener('DOMContentLoaded', function () {
         loadRecentResults();
         var resetBtn = document.getElementById('reset-upload-btn');
         if (resetBtn) resetBtn.addEventListener('click', resetUpload);
+        var clearRecentBtn = document.getElementById('clear-recent-btn');
+        if (clearRecentBtn) clearRecentBtn.addEventListener('click', clearRecentResults);
     }
 
     // results.html — loading-state container present
