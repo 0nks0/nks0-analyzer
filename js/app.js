@@ -9,7 +9,7 @@ if (window.self !== window.top) { try { window.top.location = window.self.locati
 // ─── Backend URL ──────────────────────────────────────────────────────────────
 
 const API_BASE = 'https://nks0-api.onrender.com';
-const APP_VERSION = '1.3.0'; // bump this when releasing a new version
+const APP_VERSION = '1.3.1'; // bump this when releasing a new version
 function getApiBase() { return API_BASE; }
 function apiHeaders() { return {}; }
 
@@ -707,7 +707,7 @@ function _renderBruteForce(alert) {
     </div>`;
     html += `<div class="nks-detail-section">
         <div class="nks-detail-label">Target</div>
-        <div>${_ipLabel(d.src_ip)} <span class="text-secondary">→</span> ${_ipLabel(d.dst_ip)}:<strong>${d.dst_port || '?'}</strong>
+        <div>${_ipLabel(d.src_ip)} <span class="text-secondary">→</span> ${_ipLabel(d.dst_ip)}:<strong>${escapeHtml(String(d.dst_port || '?'))}</strong>
             <span class="ms-1 text-secondary">(${escapeHtml(d.protocol || '')})</span>
         </div>
     </div>`;
@@ -755,7 +755,7 @@ function _toggleReveal(id, btn) {
 function _renderCredentials(alert) {
     const d = alert.details || {};
     const captured = d.captured || [];
-    let html = `<div class="nks-detail-section"><div>${_ipLabel(d.src_ip)} <span class="text-secondary">→</span> ${_ipLabel(d.dst_ip)}:<strong>${d.dst_port || '?'}</strong></div></div>`;
+    let html = `<div class="nks-detail-section"><div>${_ipLabel(d.src_ip)} <span class="text-secondary">→</span> ${_ipLabel(d.dst_ip)}:<strong>${escapeHtml(String(d.dst_port || '?'))}</strong></div></div>`;
     if (!captured.length) return html;
 
     html += `<div class="nks-detail-section"><div class="nks-detail-label">Captured credentials</div>
@@ -795,7 +795,7 @@ function _renderBeaconing(alert) {
         ${_chip(cv   != null ? cv.toFixed(2) : '—', 'CV (jitter)')}
     </div>`;
     html += `<div class="nks-detail-section"><div class="nks-detail-label">Beacon channel</div>
-        <div>${_ipLabel(d.src_ip)} <span class="text-secondary">→</span> ${_ipLabel(d.dst_ip)}:<strong>${d.dst_port || '?'}</strong></div>
+        <div>${_ipLabel(d.src_ip)} <span class="text-secondary">→</span> ${_ipLabel(d.dst_ip)}:<strong>${escapeHtml(String(d.dst_port || '?'))}</strong></div>
     </div>`;
     if (cv != null) {
         const cvPct = Math.min(cv * 100, 100);
@@ -877,7 +877,7 @@ function _renderDataExfil(alert) {
         html += `<div class="nks-detail-section"><div class="nks-detail-label">Top destinations</div>`;
         dests.forEach(dest => {
             const pct   = ((dest.bytes || 0) / maxB * 100).toFixed(0);
-            const label = dest.hostname ? `${dest.ip} <span class="nks-hostname">(${escapeHtml(dest.hostname)})</span>` : escapeHtml(dest.ip || '?');
+            const label = dest.hostname ? `${escapeHtml(dest.ip || '?')} <span class="nks-hostname">(${escapeHtml(dest.hostname)})</span>` : escapeHtml(dest.ip || '?');
             html += `<div class="nks-dest-row">
                 <span class="nks-dest-ip">${label}</span>
                 <div class="nks-dest-bar-wrap"><div class="nks-dest-bar" style="width:${pct}%"></div></div>
@@ -945,7 +945,7 @@ function _renderHttpAnomaly(alert) {
         ${_chip(d.threshold || 0, 'Threshold')}
     </div>`;
     html += `<div class="nks-detail-section"><div class="nks-detail-label">Attacker → Target</div>
-        <div>${_ipLabel(d.src_ip)} <span class="text-secondary">→</span> ${_ipLabel(d.dst_ip)}:<strong>${d.dst_port || '?'}</strong></div>
+        <div>${_ipLabel(d.src_ip)} <span class="text-secondary">→</span> ${_ipLabel(d.dst_ip)}:<strong>${escapeHtml(String(d.dst_port || '?'))}</strong></div>
     </div>`;
     html += _mitreHtml(d.mitre);
     return html;
@@ -962,7 +962,7 @@ function _renderLargeFlow(alert) {
         ${_chip(escapeHtml(d.protocol || '?'), 'Protocol')}
     </div>`;
     html += `<div class="nks-detail-section"><div class="nks-detail-label">Transfer</div>
-        <div>${_ipLabel(d.src_ip)} <span class="text-secondary">→</span> ${_ipLabel(d.dst_ip)}:<strong>${d.dst_port || '?'}</strong></div>
+        <div>${_ipLabel(d.src_ip)} <span class="text-secondary">→</span> ${_ipLabel(d.dst_ip)}:<strong>${escapeHtml(String(d.dst_port || '?'))}</strong></div>
     </div>`;
     html += _mitreHtml(d.mitre);
     return html;
@@ -989,7 +989,7 @@ function _renderTlsAnomaly(alert) {
         html += `<div class="nks-detail-section"><div class="nks-detail-label">Sample connections</div>`;
         samples.forEach(s => {
             const sniPart   = s.sni ? ` SNI: <code class="nks-code">${escapeHtml(s.sni)}</code>` : '';
-            html += `<div class="nks-domain-row"><span style="font-size:0.78rem">${_ipLabel(s.dst_ip)}:<strong>${s.dst_port || '?'}</strong>${sniPart}</span></div>`;
+            html += `<div class="nks-domain-row"><span style="font-size:0.78rem">${_ipLabel(s.dst_ip)}:<strong>${escapeHtml(String(s.dst_port || '?'))}</strong>${sniPart}</span></div>`;
         });
         html += '</div>';
     }
@@ -1239,7 +1239,7 @@ function _renderWinRmExec(alert) {
     </div>`;
     html += `<div class="nks-detail-section">
         <div class="nks-detail-label">Source → Target</div>
-        <div>${_ipLabel(d.src_ip)} <span class="text-secondary">→</span> ${_ipLabel(d.dst_ip)}:<strong>${d.dst_port || '?'}</strong></div>
+        <div>${_ipLabel(d.src_ip)} <span class="text-secondary">→</span> ${_ipLabel(d.dst_ip)}:<strong>${escapeHtml(String(d.dst_port || '?'))}</strong></div>
     </div>`;
     if (commands.length) {
         html += `<div class="nks-detail-section"><div class="nks-detail-label">Commands / tools detected in payload</div><div class="nks-port-grid">`;
@@ -1338,7 +1338,7 @@ function _renderHttpDoS(alert) {
     </div>`;
     html += `<div class="nks-detail-section">
         <div class="nks-detail-label">Attack path</div>
-        <div>${_ipLabel(d.src_ip)} → ${_ipLabel(d.dst_ip)}${d.dst_port ? ':<strong>' + d.dst_port + '</strong>' : ''}</div>
+        <div>${_ipLabel(d.src_ip)} → ${_ipLabel(d.dst_ip)}${d.dst_port ? ':<strong>' + escapeHtml(String(d.dst_port)) + '</strong>' : ''}</div>
     </div>`;
     if (d.max_connection_duration_sec) {
         html += `<div class="nks-detail-section"><div class="nks-detail-label">Longest connection</div>
