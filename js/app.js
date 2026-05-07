@@ -9,7 +9,7 @@ if (window.self !== window.top) { try { window.top.location = window.self.locati
 // ─── Backend URL ──────────────────────────────────────────────────────────────
 
 const API_BASE = 'https://nks0-api.onrender.com';
-const APP_VERSION = '1.3.3'; // bump this when releasing a new version
+const APP_VERSION = '1.3.4'; // bump this when releasing a new version
 function getApiBase() { return API_BASE; }
 function apiHeaders() { return {}; }
 
@@ -133,6 +133,8 @@ function uploadFile(file) {
     if (statusEl) statusEl.textContent = 'Uploading…';
     if (barEl) barEl.style.width = '0%';
     if (estEl) estEl.textContent = '';
+    const warnEl = document.getElementById('upload-size-warn');
+    if (warnEl) warnEl.classList.toggle('d-none', file.size <= 20 * 1024 * 1024);
 
     // Rough estimate: ~2s per MB on Render free tier, minimum 8s
     const estAnalysisSec = Math.max(8, Math.round(file.size / (1024 * 1024) * 2));
@@ -227,6 +229,8 @@ function resetUpload() {
     if (els.progress) els.progress.classList.add('d-none');
     if (els.error)    els.error.classList.add('d-none');
     if (els.input)    els.input.value = '';
+    const warnEl = document.getElementById('upload-size-warn');
+    if (warnEl) warnEl.classList.add('d-none');
 }
 
 // ─── Recent Analyses (localStorage) ──────────────────────────────────────────
@@ -830,7 +834,7 @@ function _renderCredentials(alert) {
     if (!captured.length) return html;
 
     html += `<div class="nks-detail-section"><div class="nks-detail-label">Captured credentials</div>
-        <table class="nks-cred-table"><thead><tr><th>Type</th><th>Field</th><th>Value</th></tr></thead><tbody>`;
+        <div style="overflow-x:auto"><table class="nks-cred-table"><thead><tr><th>Type</th><th>Field</th><th>Value</th></tr></thead><tbody>`;
     captured.forEach((item, i) => {
         const ctype = item.type || '';
         const rows  = _credRows(item);
@@ -847,7 +851,7 @@ function _renderCredentials(alert) {
             </td></tr>`;
         });
     });
-    html += `</tbody></table></div>`;
+    html += `</tbody></table></div></div>`;
     html += _mitreHtml((alert.details || {}).mitre);
     return html;
 }
@@ -1872,6 +1876,7 @@ function renderNetworkGraph(connections, alerts, talkers) {
     const container = document.getElementById('network-graph-container');
     if (!panel || !canvas || !container) return;
     if (!connections || !connections.length) { panel.classList.add('d-none'); return; }
+    _lastNetworkGraphArgs = [connections, alerts, talkers];
     panel.classList.remove('d-none');
     void panel.offsetHeight; // force synchronous reflow so clientWidth is correct
 
@@ -2008,6 +2013,7 @@ function renderNetworkGraph(connections, alerts, talkers) {
 
 let _geoMap = null;
 let _lastGeoMapArgs = null;
+let _lastNetworkGraphArgs = null;
 
 function renderGeoMap(hosts, alerts) {
     const panel = document.getElementById('geo-map-panel');
@@ -2179,6 +2185,17 @@ document.addEventListener('DOMContentLoaded', function () {
     // results.html — loading-state container present
     if (document.getElementById('loading-state')) {
         initResultsDelegation();
+        // Redraw canvas network graph on window resize (canvas pixel dimensions are fixed at draw time)
+        var _resizeTimer = null;
+        window.addEventListener('resize', function () {
+            clearTimeout(_resizeTimer);
+            _resizeTimer = setTimeout(function () {
+                var panel = document.getElementById('graph-panel');
+                if (panel && !panel.classList.contains('d-none') && _lastNetworkGraphArgs) {
+                    renderNetworkGraph.apply(null, _lastNetworkGraphArgs);
+                }
+            }, 200);
+        });
         var params = new URLSearchParams(window.location.search);
         var analysisId = params.get('id');
         if (analysisId) {
