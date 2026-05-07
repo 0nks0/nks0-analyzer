@@ -9,7 +9,7 @@ if (window.self !== window.top) { try { window.top.location = window.self.locati
 // ─── Backend URL ──────────────────────────────────────────────────────────────
 
 const API_BASE = 'https://nks0-api.onrender.com';
-const APP_VERSION = '1.3.2'; // bump this when releasing a new version
+const APP_VERSION = '1.3.3'; // bump this when releasing a new version
 function getApiBase() { return API_BASE; }
 function apiHeaders() { return {}; }
 
@@ -306,6 +306,7 @@ function loadRecentResults() {
 let _allAlerts     = [];
 let _rawData       = null;
 const _credStore   = new Map(); // sensitive plaintext — kept in JS memory, not DOM
+let _credUidSeq    = 0;         // monotonic counter — ensures globally unique cred IDs per render
 let _checkedSev    = new Set();
 let _checkedCats   = new Set();
 let _ipSearchQuery = '';
@@ -560,6 +561,7 @@ function renderAlertList(alerts) {
         return;
     }
 
+    _credUidSeq = 0; // reset so IDs are stable within this render cycle
     const sevOrder = { Critical: 0, High: 1, Medium: 2, Low: 3, Info: 4 };
     const sorted   = [...alerts].sort((a, b) => (sevOrder[a.severity] ?? 5) - (sevOrder[b.severity] ?? 5));
     const seeAlso  = _buildSeeAlsoMap(sorted);
@@ -806,8 +808,8 @@ function _maskSecret(val) {
 function _toggleReveal(id, btn) {
     const el = document.getElementById(id);
     if (!el) return;
+    if (!_credStore.has(id)) return;
     const plain  = _credStore.get(id);
-    if (!plain) return;
     const masked = el.getAttribute('data-masked');
     const showing = el.dataset.revealed === '1';
     if (showing) {
@@ -835,7 +837,7 @@ function _renderCredentials(alert) {
         rows.forEach((row, j) => {
             const typeTd = j === 0 ? `<td rowspan="${rows.length}"><span class="nks-cred-type-badge">${escapeHtml(ctype)}</span></td>` : '';
             const masked = _maskSecret(String(row.value));
-            const uid = `cv-${i}-${j}`;
+            const uid = `cv-${_credUidSeq++}`; // globally unique per render — fixes multi-alert ID collision
             if (row.sensitive) _credStore.set(uid, String(row.value));
             html += `<tr>${typeTd}<td class="text-secondary">${escapeHtml(row.label)}</td><td>
                 <span class="nks-cred-value" data-masked="${escapeHtml(masked)}" data-revealed="0" id="${uid}">
