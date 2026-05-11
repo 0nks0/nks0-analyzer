@@ -9,7 +9,7 @@ if (window.self !== window.top) { try { window.top.location = window.self.locati
 // ─── Backend URL ──────────────────────────────────────────────────────────────
 
 const API_BASE = 'https://nks0-api.onrender.com';
-const APP_VERSION = '1.3.4'; // bump this when releasing a new version
+const APP_VERSION = '1.3.5'; // bump this when releasing a new version
 function getApiBase() { return API_BASE; }
 function apiHeaders() { return {}; }
 
@@ -706,6 +706,7 @@ function _renderAlertBody(alert) {
         case 'KerberosRoasting':      html = _renderKerberosRoasting(alert); break;
         case 'WinRmExec':             html = _renderWinRmExec(alert); break;
         case 'DnsAdEnum':             html = _renderDnsAdEnum(alert); break;
+        case 'UnexpectedHTTPService': html = _renderUnexpectedHttp(alert); break;
         case 'DnsTunnel':             html = _renderDnsTunnel(alert); break;
         case 'HttpDoS':               html = _renderHttpDoS(alert); break;
         case 'DhcpAbuse':             html = _renderDhcpAbuse(alert); break;
@@ -1356,6 +1357,40 @@ function _renderDnsAdEnum(alert) {
         html += '</div>';
     }
     html += _mitreHtml(d.mitre);
+    return html;
+}
+
+// ── UnexpectedHTTPService ──────────────────────────────────────────────────────
+
+function _renderUnexpectedHttp(alert) {
+    const d = alert.details || {};
+    const srcs = d.sample_sources || [];
+    const isHigh = !!d.high_risk_port;
+    let html = `<div class="nks-stat-row">
+        ${_chip(d.flow_count      || 0, 'Flows')}
+        ${_chip(d.unique_sources  || 0, 'Source IPs')}
+        ${_chip(d.dst_port        || 0, 'Port')}
+    </div>`;
+    html += `<div class="nks-detail-section">
+        <div class="nks-detail-label">Server</div>
+        <div>${_ipLabel(d.dst_ip)}${d.hostname && d.hostname !== d.dst_ip ? `<span class="text-secondary ms-1" style="font-size:0.78rem">(${escapeHtml(d.hostname)})</span>` : ''}</div>
+        <div class="nks-port-grid mt-1">
+            <span class="nks-port-badge" style="background:rgba(255,140,0,0.10);color:#ffa040;border-color:rgba(255,140,0,0.25)">TCP/${escapeHtml(String(d.dst_port || '?'))}</span>
+            ${isHigh ? `<span class="nks-port-badge" style="background:rgba(255,88,88,0.15);color:#ff5858;border-color:rgba(255,88,88,0.30)">High-risk port</span>` : ''}
+        </div>
+    </div>`;
+    if (d.sample_banner) {
+        html += `<div class="nks-detail-section">
+            <div class="nks-detail-label">HTTP banner sample</div>
+            <code style="font-size:0.78rem;color:var(--nks-accent)">${escapeHtml(d.sample_banner)}</code>
+        </div>`;
+    }
+    if (srcs.length) {
+        html += `<div class="nks-detail-section"><div class="nks-detail-label">Sample source IPs</div><div class="nks-port-grid">`;
+        srcs.forEach(s => { html += `<span class="nks-port-badge">${_ipLabel(s)}</span>`; });
+        html += '</div></div>';
+    }
+    html += _mitreHtml(alert.mitre);
     return html;
 }
 
