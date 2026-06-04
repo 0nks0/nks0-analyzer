@@ -803,6 +803,12 @@ body {
 
 /* ─── Print: expand all + hide chrome ───────────────────────────────────── */
 
+/* ─── Site stats bar ────────────────────────────────────────── */
+
+.nks-stats-bar { font-size: 0.85rem; color: var(--nks-text-muted); }
+.nks-stats-value { font-weight: 700; color: var(--nks-accent); margin-right: 3px; }
+.nks-stats-sep { margin: 0 0.6rem; opacity: 0.4; }
+
 @media print {
     .nks-navbar, #alert-filter-bar, #severity-badges, .col-lg-4, button { display: none !important; }
     body { background: #fff !important; color: #000 !important; font-size: 11pt; }

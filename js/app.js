@@ -9,7 +9,7 @@ if (window.self !== window.top) { try { window.top.location = window.self.locati
 // ─── Backend URL ──────────────────────────────────────────────────────────────
 
 const API_BASE = 'https://nks0-api.onrender.com';
-const APP_VERSION = '1.3.5'; // bump this when releasing a new version
+const APP_VERSION = '1.4.0'; // bump this when releasing a new version
 function getApiBase() { return API_BASE; }
 function apiHeaders() { return {}; }
 
@@ -46,6 +46,19 @@ function checkApiStatus() {
         .then(r => r.ok ? r.json() : Promise.reject())
         .then(() => setApiStatus('Online', 'ok'))
         .catch(() => setApiStatus('Offline', 'error'));
+}
+
+async function loadSiteStats() {
+    try {
+        const res = await fetchWithTimeout(getApiBase() + '/api/stats', {}, 8000);
+        if (!res.ok) return;
+        const d = await res.json();
+        const el = document.getElementById('site-stats-bar');
+        if (!el) return;
+        document.getElementById('stat-scans').textContent  = formatNumber(d.total_scans  || 0);
+        document.getElementById('stat-alerts').textContent = formatNumber(d.total_alerts || 0);
+        el.style.display = '';
+    } catch (_) {}
 }
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
@@ -2206,6 +2219,7 @@ function initResultsDelegation() {
 
 document.addEventListener('DOMContentLoaded', function () {
     initConnectionBar();
+    if (document.getElementById('site-stats-bar')) loadSiteStats();
 
     // index.html — upload zone present
     if (document.getElementById('upload-zone')) {
