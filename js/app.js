@@ -139,6 +139,26 @@ function uploadFile(file) {
     const estEl    = document.getElementById('progress-estimate');
     if (!prompt || !progress || !errorDiv) return;
 
+    // Client-side guardrails — reject bad input before wasting an upload
+    const MAX_FILE_BYTES = 150 * 1024 * 1024; // 150 MB hard cap (Render free tier limit)
+    const showEarlyError = msg => {
+        prompt.classList.add('d-none');
+        progress.classList.add('d-none');
+        errorDiv.classList.remove('d-none');
+        const el = document.getElementById('error-message');
+        if (el) el.textContent = msg;
+    };
+    if (!file || file.size === 0) {
+        return showEarlyError('That file looks empty — pick a valid .pcap / .pcapng capture.');
+    }
+    if (file.size > MAX_FILE_BYTES) {
+        return showEarlyError(`File is too large (${formatBytes(file.size)}). Maximum is ${formatBytes(MAX_FILE_BYTES)} — try trimming the capture (e.g. editcap) or splitting it.`);
+    }
+    const lowerName = (file.name || '').toLowerCase();
+    if (!lowerName.endsWith('.pcap') && !lowerName.endsWith('.pcapng')) {
+        return showEarlyError('Unsupported file type — only .pcap and .pcapng captures are accepted.');
+    }
+
     prompt.classList.add('d-none');
     errorDiv.classList.add('d-none');
     progress.classList.remove('d-none');
