@@ -200,6 +200,8 @@ function uploadFile(file) {
                 if (statusEl) statusEl.textContent = 'Done!';
                 if (estEl) estEl.textContent = '';
                 saveRecentResult(id, file.name);
+                // Refresh the global scan counter so it ticks up live after each analysis
+                if (typeof loadSiteStats === 'function') loadSiteStats();
                 setTimeout(() => { window.location.href = 'results.html?id=' + encodeURIComponent(id); }, 300);
             })
             .catch(err => { clearInterval(timer); showError(err.message); });
