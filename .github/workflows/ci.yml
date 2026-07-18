@@ -20,9 +20,9 @@ jobs:
           done
       - name: Version consistency check
         run: |
-          APP_VER=$(grep -oE "APP_VERSION = '[0-9.]+'" js/app.js | grep -oE "[0-9.]+")
-          IDX=$(grep -oE "app.js\?v=[0-9.]+" index.html | grep -oE "[0-9.]+")
-          RES=$(grep -oE "app.js\?v=[0-9.]+" results.html | grep -oE "[0-9.]+")
+          APP_VER=$(grep -oP "APP_VERSION = '\K[0-9.]+" js/app.js)
+          IDX=$(grep -oP "app\.js\?v=\K[0-9.]+" index.html)
+          RES=$(grep -oP "app\.js\?v=\K[0-9.]+" results.html)
           echo "app.js=$APP_VER index.html=$IDX results.html=$RES"
           if [ "$APP_VER" != "$IDX" ] || [ "$APP_VER" != "$RES" ]; then
             echo "::error::Version mismatch! app.js=$APP_VER index.html=$IDX results.html=$RES"
