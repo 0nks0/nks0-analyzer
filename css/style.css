@@ -969,3 +969,32 @@ body {
 /* ─── Footer ────────────────────────────────────────────────── */
 
 .nks-footer { border-top: 1px solid var(--nks-border); padding-top: 2rem; }
+
+/* ─── Risk verdict banner ──────────────────────────────────── */
+
+.nks-risk-verdict {
+    border-radius: 8px;
+    border: 1px solid var(--nks-border);
+    background-color: var(--nks-surface);
+    font-size: 0.95rem;
+}
+.nks-risk-verdict.nks-risk-clean   { border-color: rgba(63,185,80,0.4);  background-color: rgba(63,185,80,0.08); }
+.nks-risk-verdict.nks-risk-watch   { border-color: rgba(210,153,34,0.4); background-color: rgba(210,153,34,0.08); }
+.nks-risk-verdict.nks-risk-danger  { border-color: rgba(248,81,73,0.5);  background-color: rgba(248,81,73,0.10); }
+.nks-risk-verdict.nks-risk-clean   #risk-verdict-icon { color: var(--nks-info); }
+.nks-risk-verdict.nks-risk-watch   #risk-verdict-icon { color: var(--nks-medium); }
+.nks-risk-verdict.nks-risk-danger  #risk-verdict-icon { color: var(--nks-high); }
+
+/* ─── Print / PDF (hide chrome, keep report) ──────────────── */
+
+@media print {
+    .nks-navbar, #print-btn, #export-csv-btn, #export-json-btn,
+    #expand-all-btn, #collapse-all-btn, #alert-filter-bar,
+    .nks-alert-search, #guest-banner, .nks-footer,
+    #timeline-panel, #graph-panel { display: none !important; }
+    body { background: #fff !important; color: #000 !important; }
+    .nks-card { break-inside: avoid; border-color: #ccc !important; }
+    .nks-alert-item { break-inside: avoid; border-left-width: 3px !important; }
+    .nks-stat-value, .nks-stat-label { color: #000 !important; }
+    a { text-decoration: none !important; color: #000 !important; }
+}

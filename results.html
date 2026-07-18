@@ -53,6 +53,9 @@
                     <button class="btn btn-sm btn-outline-secondary" id="export-json-btn">
                         <i class="bi bi-download"></i> JSON
                     </button>
+                    <button class="btn btn-sm btn-outline-secondary" id="print-btn" title="Print / Save as PDF">
+                        <i class="bi bi-printer"></i> PDF
+                    </button>
                 </div>
             </div>
 
@@ -92,6 +95,31 @@
                             <div class="nks-stat-label">Analysis Time</div>
                         </div>
                     </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="card nks-card nks-stat-card">
+                        <div class="card-body text-center p-3">
+                            <div class="nks-stat-value" id="stat-total-alerts">-</div>
+                            <div class="nks-stat-label">Total Alerts</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="card nks-card nks-stat-card">
+                        <div class="card-body text-center p-3">
+                            <div class="nks-stat-value" id="stat-critical-high">-</div>
+                            <div class="nks-stat-label">Critical + High</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Risk verdict banner -->
+            <div id="risk-verdict" class="alert nks-risk-verdict d-none mb-3" role="alert">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <i id="risk-verdict-icon" class="bi bi-shield-check fs-4"></i>
+                    <span id="risk-verdict-text" class="fw-semibold">—</span>
+                    <span id="risk-verdict-sub" class="text-secondary small"></span>
                 </div>
             </div>
 
@@ -245,9 +273,15 @@
         <div id="error-state" class="text-center mt-5 d-none">
             <i class="bi bi-exclamation-triangle fs-1 text-danger"></i>
             <p class="text-danger mt-2" id="results-error-message">Failed to load results.</p>
-            <a href="index.html" class="btn btn-outline-secondary mt-2">
-                <i class="bi bi-arrow-left"></i> Back to upload
-            </a>
+            <p class="text-secondary small mt-1" id="error-hint"></p>
+            <div class="d-flex justify-content-center gap-2 mt-2">
+                <button class="btn btn-sm btn-outline-secondary" id="retry-btn">
+                    <i class="bi bi-arrow-clockwise"></i> Retry
+                </button>
+                <a href="index.html" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> Back to upload
+                </a>
+            </div>
         </div>
 
     </main>
