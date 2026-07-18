@@ -132,8 +132,15 @@
                     <span><i class="bi bi-activity"></i> Alert Timeline</span>
                     <span class="text-secondary small" id="timeline-range"></span>
                 </div>
-                <div class="card-body p-2" id="timeline-container">
-                    <svg id="timeline-svg" width="100%" style="display:block;overflow:visible"></svg>
+                <div class="card-body p-2">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <input type="range" id="timeline-start" min="0" max="1000" value="0" class="form-range" style="flex:1">
+                        <input type="range" id="timeline-end" min="0" max="1000" value="1000" class="form-range" style="flex:1">
+                        <button class="btn btn-sm btn-outline-secondary" id="timeline-reset">Reset</button>
+                    </div>
+                    <div id="timeline-container">
+                        <svg id="timeline-svg" width="100%" style="display:block;overflow:visible"></svg>
+                    </div>
                 </div>
             </div>
 
@@ -267,6 +274,37 @@
                     </div>
                 </div>
             </div><!-- /network flow row -->
+
+            <!-- Evidence + MITRE row -->
+            <div class="row g-4 mt-0">
+                <!-- Evidence chain-of-custody -->
+                <div id="evidence-panel" class="col-lg-6 d-none">
+                    <div class="card nks-card h-100">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-lock"></i> Evidence Chain</span>
+                            <span class="text-secondary small" id="evidence-count"></span>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover mb-0 nks-table">
+                                    <thead><tr><th>Source</th><th>Hash</th><th>Verified</th></tr></thead>
+                                    <tbody id="evidence-table-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MITRE ATT&CK heatmap -->
+                <div id="mitre-panel" class="col-lg-6 d-none">
+                    <div class="card nks-card h-100">
+                        <div class="card-header"><i class="bi bi-diagram-3"></i> MITRE ATT&CK Coverage</div>
+                        <div class="card-body">
+                            <canvas id="mitre-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div><!-- /evidence + mitre row -->
         </div><!-- /results-content -->
 
         <!-- Error -->

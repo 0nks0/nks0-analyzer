@@ -446,6 +446,10 @@ function renderResults(data) {
     renderSeverityChart(summary.alert_counts || {});
     renderNetworkGraph(data.connections || summary.connections || [], data.alerts || [], summary.top_talkers || []);
     renderGeoMap(data.hosts || summary.top_talkers || [], data.alerts || []);
+    renderEvidenceChain(data);
+    renderMitreHeatmap(data.alerts || []);
+    renderTimeline(data.alerts || []);
+    initTimelineControls(data.alerts || []);
     initExportButtons(data);
 }
 
@@ -1736,11 +1740,43 @@ function _remediationHtml(category) {
 
 // ─── Export ───────────────────────────────────────────────────────────────────
 
+function _buildExportMeta(data) {
+    const alerts = data.alerts || [];
+    const mitre = {};
+    alerts.forEach(a => {
+        const m = (a.details || {}).mitre;
+        if (!m || !m.techniques) return;
+        const tactic = m.tactic || 'Unknown';
+        if (!mitre[tactic]) mitre[tactic] = new Set();
+        m.techniques.forEach(t => mitre[tactic].add(t.id || String(t)));
+    });
+    return {
+        exported_at: new Date().toISOString(),
+        app_version: APP_VERSION,
+        analysis_id: data.id || null,
+        filename: data.filename || null,
+        stats: {
+            packets: (data.summary || {}).total_packets || 0,
+            alerts: alerts.length,
+            duration_seconds: (data.summary || {}).time_range?.duration_seconds || 0,
+            analysis_time_seconds: data.analysis_time_seconds || 0,
+        },
+        mitre: Object.fromEntries(Object.entries(mitre).map(([k, vs]) => [k, [...vs].sort()])),
+        severity: data.summary?.alert_counts || {},
+    };
+}
+
 function initExportButtons(data) {
     const jsonBtn = document.getElementById('export-json-btn');
     if (jsonBtn) {
         jsonBtn.onclick = () => {
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const meta = _buildExportMeta(data);
+            const out = {
+                meta,
+                evidence_chain: (data.evidence_chain || []).map(e => ({...e, verified: !!e.hash})),
+                results: data,
+            };
+            const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
             const url  = URL.createObjectURL(blob);
             const a    = document.createElement('a');
             a.href = url;
@@ -1925,7 +1961,22 @@ function toggleIpv6Rows() {
     if (chevron) chevron.className = `bi bi-chevron-${hidden ? 'down' : 'right'}`;
 }
 
-// ─── Alert timeline (SVG) ─────────────────────────────────────────────────────
+// ─── Alert timeline (SVG) with brush filtering ───────────────────────────────
+
+let _timeline = null;
+
+function _timelineFrac(ts) {
+    if (!_timeline || !_timeline.tsMin || !_timeline.tsMax) return 0;
+    const frac = (ts - _timeline.tsMin) / (_timeline.tsMax - _timeline.tsMin || 1);
+    return Math.max(0, Math.min(1, frac));
+}
+
+function _timelineVisibleRange() {
+    if (!_timeline) return null;
+    const s = _timeline.startFrac ?? 0;
+    const e = _timeline.endFrac ?? 1;
+    return [_timeline.tsMin + s * (_timeline.tsMax - _timeline.tsMin), _timeline.tsMin + e * (_timeline.tsMax - _timeline.tsMin)];
+}
 
 function renderTimeline(alerts) {
     const panel = document.getElementById('timeline-panel');
@@ -1935,22 +1986,39 @@ function renderTimeline(alerts) {
     if (timed.length < 2) { panel.classList.add('d-none'); return; }
     panel.classList.remove('d-none');
 
-    const LANES    = ['critical', 'high', 'medium', 'low', 'info'];
-    const sevColor = { critical: '#ff7b72', high: '#f85149', medium: '#d29922', low: '#58a6ff', info: '#8b949e' };
-    const usedLanes = LANES.filter(lane => timed.some(a => sevClass(a.severity) === lane));
-
     const tsMin = Math.min(...timed.map(a => a.first_seen));
     const tsMax = Math.max(...timed.map(a => a.last_seen || a.first_seen));
     const tspan = tsMax - tsMin || 1;
 
+    _timeline = _timeline || {};
+    _timeline.tsMin = tsMin;
+    _timeline.tsMax = tsMax;
+    _timeline.startFrac = _timeline.startFrac ?? 0;
+    _timeline.endFrac = _timeline.endFrac ?? 1;
+
+    const [visMin, visMax] = _timelineVisibleRange();
+    const visAlerts = timed.filter(a => {
+        const x = a.first_seen;
+        return x >= visMin && x <= visMax;
+    });
+
     const rangeEl = document.getElementById('timeline-range');
-    if (rangeEl) rangeEl.textContent = `${formatTs(tsMin)} — ${formatDuration(tspan)}`;
+    if (rangeEl) rangeEl.textContent = `${formatTs(visMin)} — ${formatDuration(visMax - visMin)} (${visAlerts.length}/${timed.length})`;
 
     const svgEl = document.getElementById('timeline-svg');
     if (!svgEl) return;
 
-    const LANE_H = 36, LABEL_W = 58, PAD_R = 12, PAD_T = 4, PAD_B = 4;
+    if (!visAlerts.length) {
+        svgEl.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#8b949e" font-size="12">No alerts in selected range</text>';
+        return;
+    }
+
+    const LANES    = ['critical', 'high', 'medium', 'low', 'info'];
+    const sevColor = { critical: '#ff7b72', high: '#f85149', medium: '#d29922', low: '#58a6ff', info: '#8b949e' };
+    const usedLanes = LANES.filter(lane => visAlerts.some(a => sevClass(a.severity) === lane));
+
     const W      = svgEl.getBoundingClientRect().width || 700;
+    const LANE_H = 36, LABEL_W = 58, PAD_R = 12, PAD_T = 4, PAD_B = 4;
     const DRAW_W = W - LABEL_W - PAD_R;
     const HEIGHT = PAD_T + usedLanes.length * LANE_H + PAD_B + 12;
 
@@ -1966,8 +2034,7 @@ function renderTimeline(alerts) {
     usedLanes.forEach((lane, i) => {
         const y = PAD_T + i * LANE_H + LANE_H / 2;
         svgContent += `<line x1="${LABEL_W}" y1="${y}" x2="${W - PAD_R}" y2="${y}" stroke="${lineCol}" stroke-width="1"/>`;
-        svgContent += `<text x="${LABEL_W - 5}" y="${y + 4}" text-anchor="end" font-size="9"
-            fill="${sevColor[lane]}" font-family="-apple-system,sans-serif" font-weight="600">${lane}</text>`;
+        svgContent += `<text x="${LABEL_W - 5}" y="${y + 4}" text-anchor="end" font-size="9" fill="${sevColor[lane]}" font-family="-apple-system,sans-serif" font-weight="600">${lane}</text>`;
     });
 
     const axisY = PAD_T + usedLanes.length * LANE_H + 2;
@@ -1976,14 +2043,14 @@ function renderTimeline(alerts) {
 
     const BUCKET_PX = 10;
     const bucketGroups = {};
-    timed.forEach((alert, i) => {
+    visAlerts.forEach((alert, i) => {
         const lane = sevClass(alert.severity);
         const bx   = Math.round(xOf(alert.first_seen) / BUCKET_PX);
         const key  = `${lane}|${bx}`;
         (bucketGroups[key] = bucketGroups[key] || []).push(i);
     });
 
-    timed.forEach((alert, i) => {
+    visAlerts.forEach((alert, i) => {
         const x1 = xOf(alert.first_seen), x2 = xOf(alert.last_seen || alert.first_seen);
         const baseCy = yOf(alert.severity);
         const col    = sevColor[sevClass(alert.severity)] || '#8b949e';
@@ -1999,12 +2066,33 @@ function renderTimeline(alerts) {
         if (x2 - x1 > 2) {
             svgContent += `<rect x="${x1.toFixed(1)}" y="${(cy - 2).toFixed(1)}" width="${(x2 - x1).toFixed(1)}" height="4" fill="${col}" opacity="0.25" rx="2"/>`;
         }
-        svgContent += `<circle cx="${x1.toFixed(1)}" cy="${cy.toFixed(1)}" r="4.5" fill="${col}" opacity="0.85"
-            style="cursor:pointer" data-alert-idx="${i}" title="${tip}"/>`;
+        svgContent += `<circle cx="${x1.toFixed(1)}" cy="${cy.toFixed(1)}" r="4.5" fill="${col}" opacity="0.85" style="cursor:pointer" data-alert-idx="${i}" title="${tip}"/>`;
     });
 
     svgEl.setAttribute('height', HEIGHT);
     svgEl.innerHTML = svgContent;
+}
+
+function initTimelineControls(alerts) {
+    const startEl = document.getElementById('timeline-start');
+    const endEl = document.getElementById('timeline-end');
+    const resetBtn = document.getElementById('timeline-reset');
+    if (!startEl || !endEl || !_timeline) return;
+    startEl.value = Math.round((_timeline.startFrac ?? 0) * 1000);
+    endEl.value = Math.round((_timeline.endFrac ?? 1) * 1000);
+
+    const apply = () => {
+        _timeline.startFrac = Math.max(0, parseInt(startEl.value, 10) / 1000);
+        _timeline.endFrac  = Math.min(1, parseInt(endEl.value, 10) / 1000);
+        if (_timeline.endFrac - _timeline.startFrac < 0.01) {
+            _timeline.endFrac = Math.min(1, _timeline.startFrac + 0.01);
+            endEl.value = Math.round(_timeline.endFrac * 1000);
+        }
+        renderTimeline(alerts);
+    };
+    startEl.oninput = apply;
+    endEl.oninput = apply;
+    if (resetBtn) resetBtn.onclick = () => { _timeline.startFrac = 0; _timeline.endFrac = 1; startEl.value = 0; endEl.value = 1000; renderTimeline(alerts); };
 }
 
 // ─── Network graph (canvas bipartite) ─────────────────────────────────────────
@@ -2228,7 +2316,92 @@ function renderGeoMap(hosts, alerts) {
 }
 
 
-// ─── Guest banner ─────────────────────────────────────────────────────────────
+// ─── Evidence chain-of-custody panel ─────────────────────────────────────────
+
+let _evidenceChart = null;
+
+function renderEvidenceChain(data) {
+    const panel = document.getElementById('evidence-panel');
+    const countEl = document.getElementById('evidence-count');
+    const tbody = document.getElementById('evidence-table-body');
+    if (!panel || !tbody) return;
+    const chain = (data.evidence_chain || []);
+    if (!chain.length) { panel.classList.add('d-none'); return; }
+    panel.classList.remove('d-none');
+    if (countEl) countEl.textContent = `${chain.length} artifact${chain.length === 1 ? '' : 's'}`;
+
+    const verified = chain.filter(e => e.hash);
+    if (_evidenceChart) { _evidenceChart.destroy(); _evidenceChart = null; }
+
+    tbody.innerHTML = chain.map(e => `<tr>
+        <td style="font-size:0.78rem">${escapeHtml(e.source || '—')}</td>
+        <td><code class="nks-code" style="font-size:0.72rem">${escapeHtml((e.hash || '').substring(0, 32))}${e.hash ? '…' : '—'}</code></td>
+        <td class="text-end">${e.hash ? '<i class="bi bi-check-circle" style="color:var(--nks-info)"></i>' : '<i class="bi bi-dash-circle" style="color:var(--nks-muted)"></i>'}</td>
+    </tr>`).join('');
+
+    // Mini donut: verified / missing
+    const canvas = document.getElementById('evidence-chart');
+    if (!canvas) return;
+    if (!verified.length && chain.length) {
+        canvas.parentElement.innerHTML = '<p class="text-secondary text-center small py-3">No verified artifacts</p>';
+        return;
+    }
+    if (!canvas.parentElement.querySelector('canvas')) {
+        canvas.parentElement.innerHTML = '<canvas id="evidence-chart"></canvas>';
+    }
+    const ctx = document.getElementById('evidence-chart').getContext('2d');
+    _evidenceChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Verified', 'Missing hash'],
+            datasets: [{ data: [verified.length, chain.length - verified.length], backgroundColor: ['rgba(63,185,80,0.85)', 'rgba(139,148,158,0.35)'], borderWidth: 0 }]
+        },
+        options: {
+            cutout: '68%',
+            plugins: { legend: { display: true, labels: { color: '#8b949e', font: { size: 10 }, boxWidth: 10 } } }
+        }
+    });
+}
+
+// ─── MITRE ATT&CK heatmap ─────────────────────────────────────────────────────
+
+let _mitreChart = null;
+
+function renderMitreHeatmap(alerts) {
+    const panel = document.getElementById('mitre-panel');
+    const canvas = document.getElementById('mitre-chart');
+    if (!panel || !canvas) return;
+    const buckets = {};
+    alerts.forEach(a => {
+        const m = (a.details || {}).mitre;
+        if (!m || !m.techniques) return;
+        const tactic = m.tactic || 'Unknown';
+        const key = `${tactic}`;
+        if (!buckets[key]) buckets[key] = 0;
+        buckets[key] += 1;
+    });
+    const entries = Object.entries(buckets).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    if (!entries.length) { panel.classList.add('d-none'); return; }
+    panel.classList.remove('d-none');
+    if (_mitreChart) { _mitreChart.destroy(); _mitreChart = null; }
+    _mitreChart = new Chart(canvas, {
+        type: 'bar',
+        data: {
+            labels: entries.map(e => e[0]),
+            datasets: [{ data: entries.map(e => e[1]), backgroundColor: 'rgba(88,166,255,0.7)', borderRadius: 3 }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e', font: { size: 10 }, precision: 0 }, title: { display: true, text: 'Alerts', color: '#8b949e' } },
+                y: { grid: { display: false }, ticks: { color: '#c9d1d9', font: { size: 11 } } },
+            },
+        },
+    });
+}
 
 function showGuestBanner(expiresAt) {
     const banner = document.getElementById('guest-banner');
