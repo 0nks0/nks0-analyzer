@@ -8,7 +8,7 @@ Drop a `.pcap` or `.pcapng` file and get an instant security analysis — severi
 
 ---
 
-## Features
+## What it does
 
 - **36 detection rules** covering port scanning, brute force, data exfiltration, DNS tunneling, credential exposure, suspicious HTTP services, and more
 - **Severity-ranked alerts** (High / Medium / Low / Info) with supporting evidence for each finding
@@ -22,17 +22,9 @@ Drop a `.pcap` or `.pcapng` file and get an instant security analysis — severi
 
 ---
 
-## How It Works
+## How it works (concept)
 
-```
-┌─────────────────────┐         ┌──────────────────────────┐
-│  Static frontend    │  HTTPS  │  Analysis backend        │
-│  (GitHub Pages)     │ ──────► │  nks0-api.onrender.com   │
-│  HTML/CSS/JS        │ ◄────── │  PCAP parsing + rules    │
-└─────────────────────┘  JSON   └──────────────────────────┘
-```
-
-1. You drop a PCAP in the browser — it's validated client-side (type + size) and uploaded to the guest analysis endpoint.
+1. You drop a PCAP in the browser — it's validated client-side (type + size) and sent securely for analysis.
 2. The backend parses the capture, runs the detection rules, and returns a job ID.
 3. The frontend polls the job until analysis completes, then renders the results page.
 
@@ -44,7 +36,7 @@ The frontend is **fully static** — no build step, no framework. Just open `ind
 
 PCAP files can contain sensitive data (credentials, internal IPs, real traffic). Please note:
 
-- Uploads are processed by the backend to generate analysis and are **not intended for long-term storage** — results expire with the server session.
+- Uploads are processed to generate analysis and are **not intended for long-term storage** — results expire with the session.
 - Detected cleartext credentials are held in browser memory only and are not persisted to disk or the DOM unless you explicitly reveal them.
 - **Do not upload captures containing data you are not authorized to share.** Sanitize sensitive traffic first (e.g. with `tcprewrite` / `editcap`) when in doubt.
 
@@ -63,8 +55,6 @@ python3 -m http.server 8000
 # open http://127.0.0.1:8000
 ```
 
-The frontend points at the hosted backend (`nks0-api.onrender.com`) by default. Note the backend runs on a free tier and may cold-start (~50s) after inactivity.
-
 ---
 
 ## File Limits
@@ -78,7 +68,6 @@ The frontend points at the hosted backend (`nks0-api.onrender.com`) by default. 
 ## Tech Stack
 
 - **Frontend:** vanilla JS, Bootstrap 5, Chart.js (all pinned with Subresource Integrity)
-- **Hosting:** GitHub Pages (frontend) + Render (backend API)
 - **Security headers:** Content-Security-Policy, `no-referrer`, clickjacking protection
 
 ---
