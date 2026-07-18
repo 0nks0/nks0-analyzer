@@ -9,3 +9,6 @@ Thumbs.db
 docs/BUSINESS_PLAN.md
 docs/MULTI_TENANCY_DESIGN.md
 docs/NEW_RULE_PROPOSALS.md
+
+# Internal infra doc — never publish (exposes backend hosting/keep-alive method)
+docs/RENDER_KEEPALIVE.md
