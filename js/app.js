@@ -2523,7 +2523,9 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         var params = new URLSearchParams(window.location.search);
         var analysisId = params.get('id');
-        if (params.get('demo')) {
+        if (params.get('id')) {
+            loadResults(analysisId);
+        } else if (params.has('demo')) {
             // Demo mode: inject synthetic results for visual review
             const demo = {
                 id: 'demo-001',
@@ -2583,6 +2585,7 @@ document.addEventListener('DOMContentLoaded', function () {
             };
             if (loadingEl) loadingEl.classList.add('d-none');
             if (contentEl) contentEl.classList.remove('d-none');
+            if (errorEl) errorEl.classList.add('d-none');
             renderResults(demo);
         } else if (analysisId) {
             loadResults(analysisId);
