@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  frontend-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: JS syntax check (all js files)
+        run: |
+          for f in $(find . -name '*.js' -not -path './.git/*'); do
+            node --check "$f" || exit 1
+          done
+      - name: Version consistency check
+        run: |
+          APP_VER=$(grep -oE "APP_VERSION = '[0-9.]+'" js/app.js | grep -oE "[0-9.]+")
+          IDX=$(grep -oE "app.js\?v=[0-9.]+" index.html | grep -oE "[0-9.]+")
+          RES=$(grep -oE "app.js\?v=[0-9.]+" results.html | grep -oE "[0-9.]+")
+          echo "app.js=$APP_VER index.html=$IDX results.html=$RES"
+          if [ "$APP_VER" != "$IDX" ] || [ "$APP_VER" != "$RES" ]; then
+            echo "::error::Version mismatch! app.js=$APP_VER index.html=$IDX results.html=$RES"
+            exit 1
+          fi
+          echo "versions consistent"
+      - name: README link check
+        run: |
+          grep -oE 'https?://[^ )]+' README.md | while read -r url; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" -L --max-time 15 "$url" || echo "000")
+            if [ "$code" != "200" ]; then
+              echo "::warning::link may be broken ($code): $url"
+            fi
+          done
