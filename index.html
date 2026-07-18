@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NKS0 — PCAP Analyzer</title>
-    <meta name="description" content="Network packet capture analyzer. Drop a PCAP file and get instant security analysis.">
+    <meta name="description" content="Drop a PCAP file and get instant, defender-perspective security analysis. 36 detection rules, zero-noise, severity-ranked alerts, and rich visualizations.">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' https: data:; connect-src 'self' https://nks0-api.onrender.com; font-src 'self' https://cdn.jsdelivr.net data:; object-src 'none'; base-uri 'self'; form-action 'self';">
     <meta name="referrer" content="no-referrer">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
@@ -16,32 +16,40 @@
 <body>
 
     <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg nks-navbar">
+    <nav class="navbar navbar-expand-lg nks-navbar sticky-top">
         <div class="container-fluid">
             <a class="navbar-brand nks-brand" href="index.html">
                 <i class="bi bi-shield-lock-fill"></i> NKS0
             </a>
             <span class="navbar-text text-secondary d-none d-md-inline">PCAP Analyzer <span id="nav-version" class="opacity-50" style="font-size:0.8em"></span></span>
 
-            <div class="ms-auto">
+            <div class="ms-auto d-flex align-items-center gap-2">
+                <a href="https://github.com/0nks0/nks0-analyzer" target="_blank" rel="noopener noreferrer"
+                   class="btn btn-sm nks-btn-ghost d-none d-sm-inline-flex">
+                    <i class="bi bi-github"></i> GitHub
+                </a>
                 <span id="api-status" class="badge nks-status-badge" title="Backend status">—</span>
             </div>
         </div>
     </nav>
 
-    <!-- Main -->
-    <main class="container-fluid px-4 py-3">
-        <div class="row justify-content-center mt-5">
-            <div class="col-lg-7 col-xl-6">
-
-                <!-- Hero -->
-                <div class="text-center mb-4">
-                    <h1 class="nks-hero-title"><i class="bi bi-shield-lock-fill"></i> NKS0</h1>
-                    <p class="text-secondary fs-5">Network Packet Capture Analyzer</p>
-                    <p class="text-secondary small">
-                        Defender-focused threat detection — 30+ rules, zero noise philosophy.
+    <!-- Hero -->
+    <header class="nks-hero">
+        <div class="container">
+            <div class="row justify-content-center text-center">
+                <div class="col-lg-9 col-xl-8">
+                    <span class="nks-eyebrow"><i class="bi bi-shield-shaded"></i> Defender-focused network forensics</span>
+                    <h1 class="nks-hero-title">
+                        <i class="bi bi-shield-lock-fill"></i> NKS0
+                    </h1>
+                    <p class="nks-hero-sub">Network Packet Capture Analyzer</p>
+                    <p class="nks-hero-lead">
+                        Drop a <code>.pcap</code> / <code>.pcapng</code> file and get instant,
+                        defender-perspective security analysis — <strong>36 detection rules</strong>,
+                        a <strong>zero-noise philosophy</strong>, and severity-ranked alerts you can act on.
                     </p>
-                    <div id="site-stats-bar" class="nks-stats-bar my-3 text-center" style="display:none">
+
+                    <div id="site-stats-bar" class="nks-stats-bar my-4 justify-content-center" style="display:none">
                         <span class="nks-stats-item">
                             <span class="nks-stats-value" id="stat-scans">—</span>
                             <span class="nks-stats-label">scans</span>
@@ -57,68 +65,153 @@
                             <span class="nks-stats-label">detection rules</span>
                         </span>
                     </div>
-                </div>
 
-                <!-- Upload card -->
-                <div class="card nks-card">
-                    <div class="card-body p-4">
-
-                        <!-- Default: drop zone -->
-                        <div id="upload-zone" class="nks-upload-zone">
-                            <input type="file" id="pcap-input" accept=".pcap,.pcapng" class="d-none">
-
-                            <div id="upload-prompt">
-                                <i class="bi bi-cloud-arrow-up fs-1 text-info"></i>
-                                <p class="mt-2 mb-1 fs-5">Drop a PCAP file here</p>
-                                <p class="text-secondary small">or click to browse &nbsp;&mdash;&nbsp; .pcap / .pcapng</p>
-                            </div>
-
-                            <!-- Uploading state -->
-                            <div id="upload-progress" class="d-none" style="width:100%">
-                                <p class="mb-2 fs-5" id="progress-filename"></p>
-                                <div class="progress mb-2" style="height:6px;border-radius:3px;background:rgba(255,255,255,0.08)">
-                                    <div id="upload-progress-bar"
-                                         class="progress-bar bg-info"
-                                         role="progressbar" style="width:0%;transition:width 0.4s ease"></div>
-                                </div>
-                                <p class="text-secondary small mb-1" id="progress-status">Uploading…</p>
-                                <p class="text-secondary small mb-0" id="progress-estimate" style="font-size:0.75rem"></p>
-                                <p class="text-warning small mb-0 d-none" id="upload-size-warn" style="font-size:0.75rem">
-                                    <i class="bi bi-hourglass-split"></i> Large file — analysis may take a few minutes.
-                                </p>
-                            </div>
-
-                            <!-- Error state -->
-                            <div id="upload-error" class="d-none">
-                                <i class="bi bi-exclamation-triangle fs-1 text-danger"></i>
-                                <p class="mt-2 mb-1 text-danger" id="error-message">Upload failed.</p>
-                                <button class="btn btn-outline-secondary btn-sm mt-2" id="reset-upload-btn">
-                                    <i class="bi bi-arrow-clockwise"></i> Try again
-                                </button>
-                            </div>
-                        </div>
-
+                    <div class="nks-hero-cta">
+                        <a href="#analyze" class="btn nks-btn-primary btn-lg">
+                            <i class="bi bi-cloud-arrow-up"></i> Analyze a PCAP
+                        </a>
+                        <a href="https://github.com/0nks0/nks0-analyzer" target="_blank" rel="noopener noreferrer"
+                           class="btn nks-btn-outline btn-lg">
+                            <i class="bi bi-github"></i> View source
+                        </a>
                     </div>
                 </div>
-
-                <!-- Recent analyses -->
-                <div id="recent-results" class="mt-4 d-none">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <h6 class="text-secondary mb-0"><i class="bi bi-clock-history"></i> Recent Analyses</h6>
-                        <button class="btn btn-link text-secondary p-0" id="clear-recent-btn"
-                                style="font-size:0.75rem;text-decoration:none">
-                            <i class="bi bi-trash3"></i> Clear
-                        </button>
-                    </div>
-                    <div id="recent-list"></div>
-                    <p class="text-secondary mt-2 mb-0" style="font-size:0.72rem">
-                        <i class="bi bi-device-ssd"></i> Stored on this device only &mdash; results expire with the server session.
-                    </p>
-                </div>
-
             </div>
         </div>
-    </main>
+    </header>
+
+    <!-- Features -->
+    <section class="nks-section">
+        <div class="container">
+            <div class="row g-4 justify-content-center">
+                <div class="col-12 col-md-6 col-lg-3">
+                    <div class="nks-feature">
+                        <div class="nks-feature-icon"><i class="bi bi-lightning-charge-fill"></i></div>
+                        <h3>Instant analysis</h3>
+                        <p>18k packets → full report in ~8 seconds. No setup, no agents — just upload.</p>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-lg-3">
+                    <div class="nks-feature">
+                        <div class="nks-feature-icon"><i class="bi bi-shield-check"></i></div>
+                        <h3>36 detection rules</h3>
+                        <p>From DNS tunneling to unexpected services — built from a defender's playbook, not a vendor's.</p>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-lg-3">
+                    <div class="nks-feature">
+                        <div class="nks-feature-icon"><i class="bi bi-funnel-fill"></i></div>
+                        <h3>Zero-noise</h3>
+                        <p>Severity-ranked, confidence-scored alerts with remediation text. No endless raw dumps.</p>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-lg-3">
+                    <div class="nks-feature">
+                        <div class="nks-feature-icon"><i class="bi bi-graph-up"></i></div>
+                        <h3>Rich visuals</h3>
+                        <p>Protocol, host, timeline and geo views turn packets into an investigation.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How it works -->
+    <section class="nks-section nks-section-alt">
+        <div class="container">
+            <h2 class="nks-section-title text-center">How it works</h2>
+            <div class="row g-4 justify-content-center mt-2">
+                <div class="col-12 col-md-4">
+                    <div class="nks-step">
+                        <span class="nks-step-num">1</span>
+                        <h4><i class="bi bi-file-earmark-binary"></i> Drop</h4>
+                        <p>Upload a capture from Wireshark, tcpdump, or any sensor. Validated client-side before it leaves your browser.</p>
+                    </div>
+                </div>
+                <div class="col-12 col-md-4">
+                    <div class="nks-step">
+                        <span class="nks-step-num">2</span>
+                        <h4><i class="bi bi-cpu"></i> Analyze</h4>
+                        <p>The engine runs 36 rules across protocols, hosts and timelines — scoring each finding by confidence.</p>
+                    </div>
+                </div>
+                <div class="col-12 col-md-4">
+                    <div class="nks-step">
+                        <span class="nks-step-num">3</span>
+                        <h4><i class="bi bi-bullseye"></i> Detect</h4>
+                        <p>Get ranked alerts with evidence and remediation — and export to JSON or CSV for your SOC pipeline.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Analyzer -->
+    <section id="analyze" class="nks-section">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-lg-8 col-xl-7">
+
+                    <div class="card nks-card">
+                        <div class="card-body p-4">
+
+                            <!-- Default: drop zone -->
+                            <div id="upload-zone" class="nks-upload-zone">
+                                <input type="file" id="pcap-input" accept=".pcap,.pcapng" class="d-none">
+
+                                <div id="upload-prompt">
+                                    <i class="bi bi-cloud-arrow-up fs-1 text-info"></i>
+                                    <p class="mt-2 mb-1 fs-5">Drop a PCAP file here</p>
+                                    <p class="text-secondary small">or click to browse &nbsp;&mdash;&nbsp; .pcap / .pcapng</p>
+                                </div>
+
+                                <!-- Uploading state -->
+                                <div id="upload-progress" class="d-none" style="width:100%">
+                                    <p class="mb-2 fs-5" id="progress-filename"></p>
+                                    <div class="progress mb-2" style="height:6px;border-radius:3px;background:rgba(255,255,255,0.08)">
+                                        <div id="upload-progress-bar"
+                                             class="progress-bar bg-info"
+                                             role="progressbar" style="width:0%;transition:width 0.4s ease"></div>
+                                    </div>
+                                    <p class="text-secondary small mb-1" id="progress-status">Uploading…</p>
+                                    <p class="text-secondary small mb-0" id="progress-estimate" style="font-size:0.75rem"></p>
+                                    <p class="text-warning small mb-0 d-none" id="upload-size-warn" style="font-size:0.75rem">
+                                        <i class="bi bi-hourglass-split"></i> Large file — analysis may take a few minutes.
+                                    </p>
+                                </div>
+
+                                <!-- Error state -->
+                                <div id="upload-error" class="d-none">
+                                    <i class="bi bi-exclamation-triangle fs-1 text-danger"></i>
+                                    <p class="mt-2 mb-1 text-danger" id="error-message">Upload failed.</p>
+                                    <button class="btn btn-outline-secondary btn-sm mt-2" id="reset-upload-btn">
+                                        <i class="bi bi-arrow-clockwise"></i> Try again
+                                    </button>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- Recent analyses -->
+                    <div id="recent-results" class="mt-4 d-none">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="text-secondary mb-0"><i class="bi bi-clock-history"></i> Recent Analyses</h6>
+                            <button class="btn btn-link text-secondary p-0" id="clear-recent-btn"
+                                    style="font-size:0.75rem;text-decoration:none">
+                                <i class="bi bi-trash3"></i> Clear
+                            </button>
+                        </div>
+                        <div id="recent-list"></div>
+                        <p class="text-secondary mt-2 mb-0" style="font-size:0.72rem">
+                            <i class="bi bi-device-ssd"></i> Stored on this device only &mdash; results expire with the server session.
+                        </p>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </section>
 
     <!-- Footer -->
     <footer class="nks-footer text-center text-secondary small mt-5 pb-4">

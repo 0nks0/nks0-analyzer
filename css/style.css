@@ -818,3 +818,154 @@ body {
     #alerts-container { max-height: none !important; overflow: visible !important; }
     .col-lg-8 { width: 100% !important; max-width: 100% !important; flex: 0 0 100% !important; }
 }
+
+/* ─── Hero (redesigned) ─────────────────────────────────────── */
+
+.nks-hero {
+    padding: 4rem 0 3rem;
+    background:
+        radial-gradient(1200px 400px at 50% -10%, rgba(88, 166, 255, 0.10), transparent 70%),
+        linear-gradient(180deg, var(--nks-surface) 0%, var(--nks-bg) 100%);
+    border-bottom: 1px solid var(--nks-border);
+}
+
+.nks-eyebrow {
+    display: inline-block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--nks-accent);
+    background: rgba(88, 166, 255, 0.10);
+    border: 1px solid rgba(88, 166, 255, 0.25);
+    padding: 0.3rem 0.8rem;
+    border-radius: 999px;
+    margin-bottom: 1.2rem;
+}
+
+.nks-hero-title {
+    font-size: clamp(2.6rem, 6vw, 4rem);
+    font-weight: 800;
+    color: var(--nks-accent);
+    letter-spacing: 0.06em;
+    margin-bottom: 0.2rem;
+    line-height: 1.05;
+}
+
+.nks-hero-sub {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--nks-text);
+    margin-bottom: 1rem;
+}
+
+.nks-hero-lead {
+    font-size: 1.05rem;
+    color: var(--nks-text-muted);
+    max-width: 42rem;
+    margin: 0 auto 1.5rem;
+    line-height: 1.6;
+}
+
+.nks-hero-lead code {
+    background: var(--nks-surface);
+    border: 1px solid var(--nks-border);
+    border-radius: 4px;
+    padding: 0.1rem 0.35rem;
+    font-size: 0.9em;
+    color: var(--nks-text);
+}
+
+.nks-hero-cta {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+}
+
+.nks-stats-bar { font-size: 0.85rem; color: var(--nks-text-muted); }
+.nks-stats-value { font-weight: 700; color: var(--nks-accent); margin-right: 3px; }
+.nks-stats-sep { margin: 0 0.6rem; opacity: 0.4; }
+
+/* ─── Buttons ───────────────────────────────────────────────── */
+
+.nks-btn-primary {
+    background: linear-gradient(180deg, #58a6ff, #388bfd);
+    border: none;
+    color: #0d1117;
+    font-weight: 700;
+}
+.nks-btn-primary:hover { background: linear-gradient(180deg, #6cb1ff, #4a97ff); color: #0d1117; }
+
+.nks-btn-outline {
+    background: transparent;
+    border: 1px solid var(--nks-border);
+    color: var(--nks-text);
+    font-weight: 600;
+}
+.nks-btn-outline:hover { border-color: var(--nks-accent); color: var(--nks-accent); }
+
+.nks-btn-ghost {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--nks-text-muted);
+    font-weight: 600;
+}
+.nks-btn-ghost:hover { color: var(--nks-accent); }
+
+/* ─── Sections ──────────────────────────────────────────────── */
+
+.nks-section { padding: 3rem 0; }
+.nks-section-alt { background: var(--nks-surface); border-top: 1px solid var(--nks-border); border-bottom: 1px solid var(--nks-border); }
+.nks-section-title { font-size: 1.6rem; font-weight: 700; color: var(--nks-text); margin-bottom: 2rem; }
+
+/* ─── Features ──────────────────────────────────────────────── */
+
+.nks-feature {
+    background: var(--nks-surface);
+    border: 1px solid var(--nks-border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    height: 100%;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.nks-feature:hover { transform: translateY(-4px); border-color: var(--nks-accent); }
+.nks-feature-icon {
+    font-size: 1.6rem;
+    color: var(--nks-accent);
+    margin-bottom: 0.75rem;
+}
+.nks-feature h3 { font-size: 1.05rem; font-weight: 700; color: var(--nks-text); margin-bottom: 0.5rem; }
+.nks-feature p { font-size: 0.9rem; color: var(--nks-text-muted); margin-bottom: 0; line-height: 1.55; }
+
+/* ─── Steps ─────────────────────────────────────────────────── */
+
+.nks-step {
+    background: var(--nks-bg);
+    border: 1px solid var(--nks-border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    height: 100%;
+    position: relative;
+}
+.nks-step-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: rgba(88, 166, 255, 0.15);
+    color: var(--nks-accent);
+    font-weight: 800;
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+}
+.nks-step h4 { font-size: 1.05rem; font-weight: 700; color: var(--nks-text); margin-bottom: 0.5rem; }
+.nks-step h4 i { color: var(--nks-accent); margin-right: 0.3rem; }
+.nks-step p { font-size: 0.9rem; color: var(--nks-text-muted); margin-bottom: 0; line-height: 1.55; }
+
+/* ─── Footer ────────────────────────────────────────────────── */
+
+.nks-footer { border-top: 1px solid var(--nks-border); padding-top: 2rem; }

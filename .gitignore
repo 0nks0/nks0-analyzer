@@ -2,3 +2,10 @@
 Thumbs.db
 *.log
 .claude/
+
+# Sensitive planning docs — NEVER publish to this PUBLIC repo.
+# They live in /root/nks0-private-docs/ (chmod 600) outside the repo.
+# The daily exposure check (exposed_check.py) auto-removes them if re-added.
+docs/BUSINESS_PLAN.md
+docs/MULTI_TENANCY_DESIGN.md
+docs/NEW_RULE_PROPOSALS.md
