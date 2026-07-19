@@ -2543,6 +2543,8 @@ function initResultsDelegation() {
 
 document.addEventListener('DOMContentLoaded', function () {
     initConnectionBar();
+    var as = document.getElementById('app-js-status');
+    if (as) as.textContent = 'app.js loaded';
     if (document.getElementById('site-stats-bar')) loadSiteStats();
 
     // index.html — upload zone present
@@ -2590,6 +2592,7 @@ document.addEventListener('DOMContentLoaded', function () {
             loadResults(analysisId);
         } else if (params.has('demo')) {
             // Demo mode: inject synthetic results for visual review
+            _rdb('demo mode start');
             const demo = {
                 id: 'demo-001',
                 filename: 'sample-traffic.pcap',

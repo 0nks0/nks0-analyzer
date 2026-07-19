@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tailserve OK</title>
+<style>
+body{font-family:ui-monospace,Menlo,Consolas,monospace;background:#0b0f14;color:#e6edf3;margin:24px}
+pre{background:#111922;border:1px solid #1f2937;padding:12px;border-radius:8px}
+</style>
+</head>
+<body>
+<h2>Tailscale serve check</h2>
+<pre id="out">loading…</pre>
+<script>
+  document.getElementById('out').textContent = [
+    'new Date(): ' + new Date().toISOString(),
+    'location.href: ' + location.href,
+    'userAgent: ' + navigator.userAgent
+  ].join('\n');
+  fetch('js/app.js?v=1.4.5').then(function(r){ return r.text().then(function(t){ return {ok:r.ok,status:r.status,preview:t.slice(0,120)}; }); }).then(function(x){
+    document.getElementById('out').textContent += '\n\napp.js fetch:\n' + JSON.stringify(x, null, 2);
+  }).catch(function(e){ document.getElementById('out').textContent += '\nfetch error: ' + e.message; });
+</script>
+</body>
+</html>
