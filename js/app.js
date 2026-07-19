@@ -9,7 +9,7 @@ if (window.self !== window.top) { try { window.top.location = window.self.locati
 // ─── Backend URL ──────────────────────────────────────────────────────────────
 
 const API_BASE = 'https://nks0-api.onrender.com';
-const APP_VERSION = '1.4.1'; // bump this when releasing a new version
+const APP_VERSION = '1.4.9'; // bump this when releasing a new version
 function getApiBase() { return API_BASE; }
 function apiHeaders() { return {}; }
 
@@ -366,11 +366,17 @@ function loadResults(analysisId) {
     const contentEl = document.getElementById('results-content');
     const errorEl   = document.getElementById('error-state');
 
-    fetchWithTimeout(getApiBase() + '/api/results/' + encodeURIComponent(analysisId), { headers: apiHeaders() }, 30_000)
-        .then(resp => {
-            if (!resp.ok) throw new Error('Analysis not found (id: ' + analysisId + ')');
-            return resp.json();
-        })
+    let timeoutHandle = setTimeout(() => {
+        if (loadingEl) {
+            const p = loadingEl.querySelector('p');
+            if (p) p.textContent = 'Still loading… if this persists, the backend may be unreachable from your browser.';
+        }
+    }, 15_000);
+
+    const cleanup = () => clearTimeout(timeoutHandle);
+
+    fetchWithTimeout(getApiBase() + '/api/results/' + encodeURIComponent(analysisId), { headers: apiHeaders() }, 45_000)
+        .then(resp => { cleanup(); if (!resp.ok) throw new Error('Analysis not found (id: ' + analysisId + ')'); return resp.json(); })
         .then(data => {
             _rawData = data;
             if (loadingEl) loadingEl.classList.add('d-none');
@@ -379,6 +385,7 @@ function loadResults(analysisId) {
             if (data.is_guest) showGuestBanner(data.expires_at);
         })
         .catch(err => {
+            cleanup();
             if (loadingEl) loadingEl.classList.add('d-none');
             if (errorEl)   errorEl.classList.remove('d-none');
             const msgEl = document.getElementById('results-error-message');
