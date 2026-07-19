@@ -1,75 +1,32 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NKS0 — Results</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"
+        integrity="sha384-XGjxtQfXaH2tnPFa9x+ruJTuLE3Aa6LhHSWRr1XeTyhezb4abCG4ccI5AkVDxqC+" crossorigin="anonymous">
+  <link href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.css" rel="stylesheet"
+        integrity="sha384-b8ANgTJvdlAnWM5YGMpKn7Kodm+1k7NYNG9zdjTCcZcKatzYHwZ0RLdWarbJJVzU" crossorigin="anonymous">
+  <link href="css/style.css?v=1.4.6" rel="stylesheet">
   <style>
     * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      background: #0b0f14;
-      color: #e6edf3;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      font-size: 14px;
-      line-height: 1.5;
-    }
-    header {
-      padding: 12px 16px;
-      border-bottom: 1px solid #1f2937;
-      background: #0d1217;
-    }
-    footer {
-      padding: 12px 16px;
-      border-top: 1px solid #1f2937;
-      text-align: center;
-      color: #8b949e;
-      font-size: 12px;
-    }
+    body { margin: 0; background: #0b0f14; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; line-height: 1.5; }
+    header { padding: 12px 16px; border-bottom: 1px solid #1f2937; background: #0d1217; }
+    footer { padding: 12px 16px; border-top: 1px solid #1f2937; text-align: center; color: #8b949e; font-size: 12px; }
     main { padding: 16px; }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-      gap: 10px;
-      margin-bottom: 16px;
-    }
-    .card {
-      background: #111922;
-      border: 1px solid #1f2937;
-      border-radius: 8px;
-      padding: 12px;
-    }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
+    .card { background: #111922; border: 1px solid #1f2937; border-radius: 8px; padding: 12px; }
     .card .label { color: #8b949e; font-size: 11px; margin-bottom: 4px; }
     .card .value { font-size: 16px; font-weight: 600; }
-    .banner {
-      padding: 10px 14px;
-      background: #1c1408;
-      border: 1px solid #4a3500;
-      border-radius: 8px;
-      color: #ffa657;
-      margin-bottom: 16px;
-    }
-    .panel {
-      background: #111922;
-      border: 1px solid #1f2937;
-      border-radius: 10px;
-      margin-bottom: 16px;
-      overflow: hidden;
-    }
-    .panel-header {
-      padding: 10px 12px;
-      border-bottom: 1px solid #1f2937;
-      font-weight: 600;
-      color: #c9d1d9;
-    }
+    .banner { padding: 10px 14px; background: #1c1408; border: 1px solid #4a3500; border-radius: 8px; color: #ffa657; margin-bottom: 16px; }
+    .panel { background: #111922; border: 1px solid #1f2937; border-radius: 10px; margin-bottom: 16px; overflow: hidden; }
+    .panel-header { padding: 10px 12px; border-bottom: 1px solid #1f2937; font-weight: 600; color: #c9d1d9; }
     .panel-body { padding: 12px; }
     table { width: 100%; border-collapse: collapse; }
-    th, td {
-      padding: 8px 10px;
-      text-align: left;
-      font-size: 13px;
-      border-bottom: 1px solid #1f2937;
-    }
+    th, td { padding: 8px 10px; text-align: left; font-size: 13px; border-bottom: 1px solid #1f2937; }
     th { color: #8b949e; font-weight: 600; }
     .bar-wrap { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
     .bar-label { width: 160px; color: #c9d1d9; font-size: 13px; }
@@ -79,15 +36,7 @@
     .ok { color: #3fb950; }
     .warn { color: #d29922; }
     .muted { color: #8b949e; }
-    .pill {
-      display: inline-block;
-      padding: 4px 10px;
-      border-radius: 999px;
-      border: 1px solid #21262d;
-      background: #0d1217;
-      color: #c9d1d9;
-      margin: 0 4px 6px 0;
-    }
+    .pill { display: inline-block; padding: 4px 10px; border-radius: 999px; border: 1px solid #21262d; background: #0d1217; color: #c9d1d9; margin: 0 4px 6px 0; }
   </style>
 </head>
 <body>
@@ -97,140 +46,74 @@
   </header>
 
   <main>
-    <div class="grid">
-      <div class="card">
-        <div class="label">File</div>
-        <div class="value">sample-traffic.pcap</div>
-      </div>
-      <div class="card">
-        <div class="label">Packets</div>
-        <div class="value">4,821</div>
-      </div>
-      <div class="card">
-        <div class="label">Duration</div>
-        <div class="value">5m 23s</div>
-      </div>
-      <div class="card">
-        <div class="label">Analysis Time</div>
-        <div class="value">1.24s</div>
-      </div>
-      <div class="card">
-        <div class="label">Total Alerts</div>
-        <div class="value">26</div>
-      </div>
-      <div class="card">
-        <div class="label">Critical + High</div>
-        <div class="value warn">5</div>
-      </div>
+    <div id="loading-state" class="text-center mt-5">
+      <div class="spinner-border text-info" role="status"></div>
+      <p class="text-secondary mt-2">Loading results…</p>
     </div>
 
-    <div class="banner">
-      <strong>Elevated risk</strong>
-      <span> · Critical: 2 · High: 3 · Medium: 5 · Low: 10 · Info: 6</span>
-    </div>
+    <div id="results-content" class="d-none">
+      <div class="grid">
+        <div class="card"><div class="label">File</div><div class="value" id="stat-filename">—</div></div>
+        <div class="card"><div class="label">Packets</div><div class="value" id="stat-packets">—</div></div>
+        <div class="card"><div class="label">Duration</div><div class="value" id="stat-duration">—</div></div>
+        <div class="card"><div class="label">Analysis Time</div><div class="value" id="stat-analysis-time">—</div></div>
+        <div class="card"><div class="label">Total Alerts</div><div class="value" id="stat-total-alerts">—</div></div>
+        <div class="card"><div class="label">Critical + High</div><div class="value warn" id="stat-critical-high">—</div></div>
+      </div>
 
-    <div style="margin-bottom:12px;">
-      <span class="pill">All 26</span>
-      <span class="pill">Critical 2</span>
-      <span class="pill">High 3</span>
-      <span class="pill">Medium 5</span>
-      <span class="pill">Low 10</span>
-      <span class="pill">Info 6</span>
-    </div>
+      <div class="banner" id="risk-verdict">
+        <strong id="risk-verdict-text">Loading…</strong>
+        <span id="risk-verdict-sub"></span>
+      </div>
 
-    <div class="panel">
-      <div class="panel-header">MITRE ATT&CK Coverage</div>
-      <div class="panel-body">
-        <div class="bar-wrap">
-          <div class="bar-label">Credential Access</div>
-          <div class="bar-track"><div class="bar-fill" style="width:100%"></div></div>
-          <div class="bar-num">18</div>
+      <div class="panel">
+        <div class="panel-header">MITRE ATT&CK Coverage</div>
+        <div class="panel-body" id="mitre-panel"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">Evidence Chain</div>
+        <div class="panel-body">
+          <table>
+            <thead><tr><th>Source</th><th>Hash</th><th>Verified</th></tr></thead>
+            <tbody>
+              <tr><td id="ev-source-0">—</td><td class="muted" id="ev-hash-0">—</td><td class="muted" id="ev-ok-0">—</td></tr>
+              <tr><td id="ev-source-1">—</td><td class="muted" id="ev-hash-1">—</td><td class="muted" id="ev-ok-1">—</td></tr>
+              <tr><td id="ev-source-2">—</td><td class="muted" id="ev-hash-2">—</td><td class="muted" id="ev-ok-2">—</td></tr>
+            </tbody>
+          </table>
         </div>
-        <div class="bar-wrap">
-          <div class="bar-label">Command and Control</div>
-          <div class="bar-track"><div class="bar-fill" style="width:16%"></div></div>
-          <div class="bar-num">3</div>
-        </div>
-        <div class="bar-wrap">
-          <div class="bar-label">Exfiltration</div>
-          <div class="bar-track"><div class="bar-fill" style="width:5%"></div></div>
-          <div class="bar-num">1</div>
-        </div>
-        <div class="bar-wrap">
-          <div class="bar-label">Lateral Movement</div>
-          <div class="bar-track"><div class="bar-fill" style="width:10%"></div></div>
-          <div class="bar-num">2</div>
-        </div>
-        <div class="bar-wrap">
-          <div class="bar-label">Reconnaissance</div>
-          <div class="bar-track"><div class="bar-fill" style="width:22%"></div></div>
-          <div class="bar-num">4</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">Alerts by Severity</div>
+        <div class="panel-body">
+          <div class="bar-wrap"><div class="bar-label">Critical</div><div class="bar-track"><div class="bar-fill" id="sev-critical-bar" style="width:0;background:#ff6e40"></div></div><div class="bar-num" id="sev-critical-num">0</div></div>
+          <div class="bar-wrap"><div class="bar-label">High</div><div class="bar-track"><div class="bar-fill" id="sev-high-bar" style="width:0;background:#f85149"></div></div><div class="bar-num" id="sev-high-num">0</div></div>
+          <div class="bar-wrap"><div class="bar-label">Medium</div><div class="bar-track"><div class="bar-fill" id="sev-medium-bar" style="width:0;background:#d29922"></div></div><div class="bar-num" id="sev-medium-num">0</div></div>
+          <div class="bar-wrap"><div class="bar-label">Low</div><div class="bar-track"><div class="bar-fill" id="sev-low-bar" style="width:0;background:#58a6ff"></div></div><div class="bar-num" id="sev-low-num">0</div></div>
+          <div class="bar-wrap"><div class="bar-label">Info</div><div class="bar-track"><div class="bar-fill" id="sev-info-bar" style="width:0;background:#8b949e"></div></div><div class="bar-num" id="sev-info-num">0</div></div>
         </div>
       </div>
     </div>
 
-    <div class="panel">
-      <div class="panel-header">Evidence Chain</div>
-      <div class="panel-body">
-        <table>
-          <thead>
-            <tr><th>Source</th><th>Hash</th><th>Verified</th></tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>pcap_hash</td>
-              <td class="muted">sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</td>
-              <td class="ok">&#10003; verified</td>
-            </tr>
-            <tr>
-              <td>suricata_eve</td>
-              <td class="muted">sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</td>
-              <td class="ok">&#10003; verified</td>
-            </tr>
-            <tr>
-              <td>zeek_logs</td>
-              <td class="muted">—</td>
-              <td class="muted">— missing</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="panel">
-      <div class="panel-header">Alerts by Severity</div>
-      <div class="panel-body">
-        <div class="bar-wrap">
-          <div class="bar-label">Critical</div>
-          <div class="bar-track"><div class="bar-fill" style="width:100%;background:#ff6e40"></div></div>
-          <div class="bar-num">2</div>
-        </div>
-        <div class="bar-wrap">
-          <div class="bar-label">High</div>
-          <div class="bar-track"><div class="bar-fill" style="width:75%;background:#f85149"></div></div>
-          <div class="bar-num">3</div>
-        </div>
-        <div class="bar-wrap">
-          <div class="bar-label">Medium</div>
-          <div class="bar-track"><div class="bar-fill" style="width:50%;background:#d29922"></div></div>
-          <div class="bar-num">5</div>
-        </div>
-        <div class="bar-wrap">
-          <div class="bar-label">Low</div>
-          <div class="bar-track"><div class="bar-fill" style="width:60%;background:#58a6ff"></div></div>
-          <div class="bar-num">10</div>
-        </div>
-        <div class="bar-wrap">
-          <div class="bar-label">Info</div>
-          <div class="bar-track"><div class="bar-fill" style="width:35%;background:#8b949e"></div></div>
-          <div class="bar-num">6</div>
-        </div>
-      </div>
+    <div id="error-state" class="text-center mt-5 d-none">
+      <p class="text-danger mt-2" id="results-error-message">Failed to load results.</p>
+      <p class="text-secondary small mt-1" id="error-hint"></p>
+      <button class="btn btn-outline-secondary btn-sm mt-2" id="retry-btn">Retry</button>
     </div>
   </main>
 
   <footer>
-    NKS0 — GitHub · v1.4.5
+    NKS0 — GitHub · <span id="footer-version">v1.4.6</span>
   </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"
+          integrity="sha384-vsrfeLOOY6KuIYKDlmVH5UiBmgIdB1oEf7p01YgWHuqmOHfZr374+odEv96n9tNC" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js"
+          integrity="sha384-u5N8qJeJOO2iqNjIKTdl6KeKsEikMAmCUBPc6sC6uGpgL34aPJ4VgNhuhumedpEk" crossorigin="anonymous"></script>
+  <script src="js/app.js?v=1.4.6"></script>
 </body>
 </html>
