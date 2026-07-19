@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NKS0 — Analysis Results</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #0b0f14;
+    color: #e6edf3;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  header {
+    padding: 12px 16px;
+    border-bottom: 1px solid #1f2937;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .brand { font-weight: 700; letter-spacing: 0.05em; }
+  .status {
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #0d3320;
+    color: #3fb950;
+    border: 1px solid #1f7a3d;
+    font-size: 12px;
+  }
+  main { padding: 16px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .card {
+    background: #111922;
+    border: 1px solid #1f2937;
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .card .label { color: #8b949e; font-size: 12px; margin-bottom: 4px; }
+  .card .value { font-size: 18px; font-weight: 700; }
+  .banner {
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #1f2937;
+    background: #0d1f33;
+    color: #c9d1d9;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .panel {
+    background: #111922;
+    border: 1px solid #1f2937;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .panel-header {
+    padding: 10px 12px;
+    border-bottom: 1px solid #1f2937;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: #c9d1d9;
+    font-weight: 600;
+  }
+  .panel-body { padding: 12px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 8px 10px; text-align: left; font-size: 12px; border-bottom: 1px solid #1f2937; }
+  th { color: #8b949e; font-weight: 600; }
+  .pill { padding: 2px 8px; border-radius: 999px; border: 1px solid #1f2937; font-size: 12px; background: #0b0f14; }
+  .pill.active { background: #1f6feb26; border-color: #1f6feb; color: #58a6ff; }
+  .warn { color: #d29922; }
+  .ok { color: #3fb950; }
+  .bar-wrap { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .bar-label { width: 170px; color: #c9d1d9; font-size: 12px; }
+  .bar-track { flex: 1; height: 10px; background: #1f2937; border-radius: 999px; overflow: hidden; }
+  .bar-fill { height: 100%; background: #58a6ff; border-radius: 999px; }
+  .bar-num { width: 32px; text-align: right; color: #8b949e; font-size: 12px; }
+  .hash { color: #8b949e; font-size: 12px; word-break: break-all; }
+  .verified { color: #3fb950; }
+  .missing { color: #8b949e; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">NKS0 — Analysis Results</div>
+  <div class="status">Backend Online</div>
+</header>
+
+<main>
+  <div class="grid">
+    <div class="card"><div class="label">File</div><div class="value">sample-traffic.pcap</div></div>
+    <div class="card"><div class="label">Packets</div><div class="value">4821</div></div>
+    <div class="card"><div class="label">Duration</div><div class="value">5m 23s</div></div>
+    <div class="card"><div class="label">Analysis Time</div><div class="value">1.24s</div></div>
+    <div class="card"><div class="label">Total Alerts</div><div class="value">26</div></div>
+    <div class="card"><div class="label">Critical + High</div><div class="value warn">5</div></div>
+  </div>
+
+  <div class="banner">
+    <strong>Elevated risk</strong>
+    <span class="warn">Critical: 2 · High: 3 · Medium: 5</span>
+  </div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+    <span class="pill active">All 26</span>
+    <span class="pill">Critical 2</span>
+    <span class="pill">High 3</span>
+    <span class="pill">Medium 5</span>
+    <span class="pill">Low 10</span>
+    <span class="pill">Info 6</span>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">MITRE ATT&CK Coverage</div>
+    <div class="panel-body">
+      <div class="bar-wrap"><div class="bar-label">Credential Access</div><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><div class="bar-num">18</div></div>
+      <div class="bar-wrap"><div class="bar-label">Command and Control</div><div class="bar-track"><div class="bar-fill" style="width:16%"></div></div><div class="bar-num">3</div></div>
+      <div class="bar-wrap"><div class="bar-label">Exfiltration</div><div class="bar-track"><div class="bar-fill" style="width:5%"></div></div><div class="bar-num">1</div></div>
+      <div class="bar-wrap"><div class="bar-label">Lateral Movement</div><div class="bar-track"><div class="bar-fill" style="width:10%"></div></div><div class="bar-num">2</div></div>
+      <div class="bar-wrap"><div class="bar-label">Reconnaissance</div><div class="bar-track"><div class="bar-fill" style="width:22%"></div></div><div class="bar-num">4</div></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">Evidence Chain</div>
+    <div class="panel-body">
+      <table>
+        <thead><tr><th>Source</th><th>Hash</th><th>Verified</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>pcap_hash</td>
+            <td class="hash">sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</td>
+            <td class="verified">&#10003; verified</td>
+          </tr>
+          <tr>
+            <td>suricata_eve</td>
+            <td class="hash">sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb</td>
+            <td class="verified">&#10003; verified</td>
+          </tr>
+          <tr>
+            <td>zeek_logs</td>
+            <td class="hash missing">—</td>
+            <td class="missing">— missing</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">Alerts</div>
+    <div class="panel-body">
+      <div class="bar-wrap"><div class="bar-label">Critical</div><div class="bar-track"><div class="bar-fill" style="width:100%;background:#ff6e40"></div></div><div class="bar-num">2</div></div>
+      <div class="bar-wrap"><div class="bar-label">High</div><div class="bar-track"><div class="bar-fill" style="width:75%;background:#f85149"></div></div><div class="bar-num">3</div></div>
+      <div class="bar-wrap"><div class="bar-label">Medium</div><div class="bar-track"><div class="bar-fill" style="width:50%;background:#d29922"></div></div><div class="bar-num">5</div></div>
+    </div>
+  </div>
+</main>
+</body>
+</html>

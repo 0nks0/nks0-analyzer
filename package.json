@@ -1,0 +1,20 @@
+{
+  "name": "nks0-analyzer",
+  "version": "1.0.0",
+  "description": "A web-based network packet capture analyzer built from a **defender's perspective**.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0nks0/nks0-analyzer.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/0nks0/nks0-analyzer/issues"
+  },
+  "homepage": "https://github.com/0nks0/nks0-analyzer#readme"
+}
