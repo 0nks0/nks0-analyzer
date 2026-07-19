@@ -2529,9 +2529,8 @@ document.addEventListener('DOMContentLoaded', function () {
         if (clearRecentBtn) clearRecentBtn.addEventListener('click', clearRecentResults);
     }
 
-    const _RESULTS_DEBUG = new URLSearchParams(window.location.search).has('debug');
+    const _RESULTS_DEBUG = new URLSearchParams(window.location.search).has('debug') || true; // force on for troubleshooting
     function _rdb(...args) {
-        if (!_RESULTS_DEBUG) return;
         let panel = document.getElementById('results-debug-panel');
         if (!panel) {
             panel = document.createElement('div');
