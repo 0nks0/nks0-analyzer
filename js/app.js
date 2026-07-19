@@ -9,7 +9,7 @@ if (window.self !== window.top) { try { window.top.location = window.self.locati
 // ─── Backend URL ──────────────────────────────────────────────────────────────
 
 const API_BASE = 'https://nks0-api.onrender.com';
-const APP_VERSION = '1.4.1'; // bump this when releasing a new version
+const APP_VERSION = '1.4.2'; // bump this when releasing a new version
 function getApiBase() { return API_BASE; }
 function apiHeaders() { return {}; }
 
@@ -394,6 +394,29 @@ function loadResults(analysisId) {
 }
 
 function renderResults(data) {
+    try {
+        _rawData = data;
+        if (loadingEl) loadingEl.classList.add('d-none');
+        if (contentEl) contentEl.classList.remove('d-none');
+    } catch (_) {}
+
+    try {
+        _renderResultsInner(data);
+    } catch (err) {
+        console.error('[results] renderResults failed:', err);
+        if (loadingEl) loadingEl.classList.add('d-none');
+        if (contentEl) contentEl.classList.remove('d-none');
+        if (errorEl) {
+            errorEl.classList.remove('d-none');
+            const msgEl = document.getElementById('results-error-message');
+            if (msgEl) msgEl.textContent = err.message || 'Render failed';
+            const hintEl = document.getElementById('error-hint');
+            if (hintEl) hintEl.textContent = 'Try refreshing or re-uploading.';
+        }
+    }
+}
+
+function _renderResultsInner(data) {
     _credStore.clear();
     const summary   = data.summary || {};
     const timeRange = summary.time_range || {};
@@ -441,29 +464,29 @@ function renderResults(data) {
     });
 
     renderSeverityBadges(summary.alert_counts || {});
-    _rdb('renderAlerts');
+    _renderStep('renderAlerts');
     renderAlerts(data.alerts || []);
-    _rdb('renderProtocolChart');
+    _renderStep('renderProtocolChart');
     renderProtocolChart(summary.protocol_bytes || {});
-    _rdb('renderHostsTable');
+    _renderStep('renderHostsTable');
     renderHostsTable(summary.top_talkers || []);
-    _rdb('renderSeverityChart');
+    _renderStep('renderSeverityChart');
     renderSeverityChart(summary.alert_counts || {});
-    _rdb('renderNetworkGraph');
+    _renderStep('renderNetworkGraph');
     renderNetworkGraph(data.connections || summary.connections || [], data.alerts || [], summary.top_talkers || []);
-    _rdb('renderGeoMap');
+    _renderStep('renderGeoMap');
     renderGeoMap(data.hosts || summary.top_talkers || [], data.alerts || []);
-    _rdb('renderEvidenceChain');
+    _renderStep('renderEvidenceChain');
     renderEvidenceChain(data);
-    _rdb('renderMitreHeatmap');
+    _renderStep('renderMitreHeatmap');
     renderMitreHeatmap(data.alerts || []);
-    _rdb('renderTimeline');
+    _renderStep('renderTimeline');
     renderTimeline(data.alerts || []);
-    _rdb('initTimelineControls');
+    _renderStep('initTimelineControls');
     initTimelineControls(data.alerts || []);
-    _rdb('initExportButtons');
+    _renderStep('initExportButtons');
     initExportButtons(data);
-    _rdb('renderResults done');
+    _renderStep('renderResults done');
 }
 
 // ─── Severity tab buttons ─────────────────────────────────────────────────────
