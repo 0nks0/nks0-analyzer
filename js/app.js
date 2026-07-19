@@ -9,7 +9,7 @@ if (window.self !== window.top) { try { window.top.location = window.self.locati
 // ─── Backend URL ──────────────────────────────────────────────────────────────
 
 const API_BASE = 'https://nks0-api.onrender.com';
-const APP_VERSION = '1.4.3'; // bump this when releasing a new version
+const '1.4.4'; // bump this when releasing a new version
 function getApiBase() { return API_BASE; }
 function apiHeaders() { return {}; }
 
@@ -465,27 +465,27 @@ function _renderResultsInner(data) {
 
     renderSeverityBadges(summary.alert_counts || {});
     _renderStep('renderAlerts');
-    renderAlerts(data.alerts || []);
+    try { renderAlerts(data.alerts || []); } catch (e) { console.error('[results] renderAlerts failed', e); }
     _renderStep('renderProtocolChart');
-    renderProtocolChart(summary.protocol_bytes || {});
+    try { renderProtocolChart(summary.protocol_bytes || {}); } catch (e) { console.error('[results] renderProtocolChart failed', e); }
     _renderStep('renderHostsTable');
-    renderHostsTable(summary.top_talkers || []);
+    try { renderHostsTable(summary.top_talkers || []); } catch (e) { console.error('[results] renderHostsTable failed', e); }
     _renderStep('renderSeverityChart');
-    renderSeverityChart(summary.alert_counts || {});
+    try { renderSeverityChart(summary.alert_counts || {}); } catch (e) { console.error('[results] renderSeverityChart failed', e); }
     _renderStep('renderNetworkGraph');
-    renderNetworkGraph(data.connections || summary.connections || [], data.alerts || [], summary.top_talkers || []);
+    try { renderNetworkGraph(data.connections || summary.connections || [], data.alerts || [], summary.top_talkers || []); } catch (e) { console.error('[results] renderNetworkGraph failed', e); }
     _renderStep('renderGeoMap');
-    renderGeoMap(data.hosts || summary.top_talkers || [], data.alerts || []);
+    try { renderGeoMap(data.hosts || summary.top_talkers || [], data.alerts || []); } catch (e) { console.error('[results] renderGeoMap failed', e); }
     _renderStep('renderEvidenceChain');
-    renderEvidenceChain(data);
+    try { renderEvidenceChain(data); } catch (e) { console.error('[results] renderEvidenceChain failed', e); }
     _renderStep('renderMitreHeatmap');
-    renderMitreHeatmap(data.alerts || []);
+    try { renderMitreHeatmap(data.alerts || []); } catch (e) { console.error('[results] renderMitreHeatmap failed', e); }
     _renderStep('renderTimeline');
-    renderTimeline(data.alerts || []);
+    try { renderTimeline(data.alerts || []); } catch (e) { console.error('[results] renderTimeline failed', e); }
     _renderStep('initTimelineControls');
-    initTimelineControls(data.alerts || []);
+    try { initTimelineControls(data.alerts || []); } catch (e) { console.error('[results] initTimelineControls failed', e); }
     _renderStep('initExportButtons');
-    initExportButtons(data);
+    try { initExportButtons(data); } catch (e) { console.error('[results] initExportButtons failed', e); }
     _renderStep('renderResults done');
 }
 
