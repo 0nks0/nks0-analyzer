@@ -29,6 +29,8 @@
         </div>
     </nav>
 
+    <div id="results-debug-panel" style="display:none;position:fixed;left:0;right:0;bottom:0;max-height:35vh;overflow:auto;background:#0d1117;color:#c9d1d9;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;padding:10px;z-index:9999;border-top:1px solid #30363d"></div>
+
     <!-- Main -->
     <main class="container-fluid px-3 px-md-4 py-3">
 
@@ -284,6 +286,9 @@
                             <span><i class="bi bi-lock"></i> Evidence Chain</span>
                             <span class="text-secondary small" id="evidence-count"></span>
                         </div>
+                        <div class="card-body">
+                            <canvas id="evidence-chart" style="max-height:180px"></canvas>
+                        </div>
                         <div class="card-body p-0">
                             <div class="table-responsive">
                                 <table class="table table-sm table-hover mb-0 nks-table">
@@ -337,7 +342,6 @@
             integrity="sha384-vsrfeLOOY6KuIYKDlmVH5UiBmgIdB1oEf7p01YgWHuqmOHfZr374+odEv96n9tNC" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js"
             integrity="sha384-u5N8qJeJOO2iqNjIKTdl6KeKsEikMAmCUBPc6sC6uGpgL34aPJ4VgNhuhumedpEk" crossorigin="anonymous"></script>
-    <script src="js/app.js?v=1.4.0"></script>
     <script src="js/app.js?v=1.4.0"></script>
 </body>
 </html>

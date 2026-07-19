@@ -361,6 +361,7 @@ let _currentAnalysisId = null;
 
 function loadResults(analysisId) {
     _currentAnalysisId = analysisId;
+    _rdb('loadResults start', analysisId);
     const loadingEl = document.getElementById('loading-state');
     const contentEl = document.getElementById('results-content');
     const errorEl   = document.getElementById('error-state');
@@ -440,17 +441,29 @@ function renderResults(data) {
     });
 
     renderSeverityBadges(summary.alert_counts || {});
+    _rdb('renderAlerts');
     renderAlerts(data.alerts || []);
+    _rdb('renderProtocolChart');
     renderProtocolChart(summary.protocol_bytes || {});
+    _rdb('renderHostsTable');
     renderHostsTable(summary.top_talkers || []);
+    _rdb('renderSeverityChart');
     renderSeverityChart(summary.alert_counts || {});
+    _rdb('renderNetworkGraph');
     renderNetworkGraph(data.connections || summary.connections || [], data.alerts || [], summary.top_talkers || []);
+    _rdb('renderGeoMap');
     renderGeoMap(data.hosts || summary.top_talkers || [], data.alerts || []);
+    _rdb('renderEvidenceChain');
     renderEvidenceChain(data);
+    _rdb('renderMitreHeatmap');
     renderMitreHeatmap(data.alerts || []);
+    _rdb('renderTimeline');
     renderTimeline(data.alerts || []);
+    _rdb('initTimelineControls');
     initTimelineControls(data.alerts || []);
+    _rdb('initExportButtons');
     initExportButtons(data);
+    _rdb('renderResults done');
 }
 
 // ─── Severity tab buttons ─────────────────────────────────────────────────────
@@ -2397,7 +2410,16 @@ function renderMitreHeatmap(alerts) {
             plugins: { legend: { display: false } },
             scales: {
                 x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e', font: { size: 10 }, precision: 0 }, title: { display: true, text: 'Alerts', color: '#8b949e' } },
-                y: { grid: { display: false }, ticks: { color: '#c9d1d9', font: { size: 11 } } },
+                y: {
+                    grid: { display: false },
+                    ticks: {
+                        color: '#c9d1d9',
+                        font: { size: 11, lineHeight: 1.25 },
+                        autoSkip: false,
+                        maxRotation: 0,
+                        minRotation: 0,
+                    },
+                },
             },
         },
     });
@@ -2507,8 +2529,24 @@ document.addEventListener('DOMContentLoaded', function () {
         if (clearRecentBtn) clearRecentBtn.addEventListener('click', clearRecentResults);
     }
 
-    // results.html — loading-state container present
+    const _RESULTS_DEBUG = new URLSearchParams(window.location.search).has('debug');
+    function _rdb(...args) {
+        if (!_RESULTS_DEBUG) return;
+        let panel = document.getElementById('results-debug-panel');
+        if (!panel) {
+            panel = document.createElement('div');
+            panel.id = 'results-debug-panel';
+            panel.style.cssText = 'display:block;position:fixed;left:0;right:0;bottom:0;max-height:35vh;overflow:auto;background:#0d1117;color:#c9d1d9;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;padding:10px;z-index:9999;border-top:1px solid #30363d';
+            document.body.appendChild(panel);
+        }
+        const line = document.createElement('div');
+        line.textContent = '[results] ' + Array.from(args).join(' ');
+        panel.appendChild(line);
+        panel.scrollTop = panel.scrollHeight;
+        console.debug('[results]', ...args);
+    }
     if (document.getElementById('loading-state')) {
+        _rdb('init results page');
         initResultsDelegation();
         // Redraw canvas network graph on window resize (canvas pixel dimensions are fixed at draw time)
         var _resizeTimer = null;
