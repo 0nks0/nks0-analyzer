@@ -2588,78 +2588,17 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         var params = new URLSearchParams(window.location.search);
         var analysisId = params.get('id');
-        if (params.get('id')) {
-            loadResults(analysisId);
-        } else if (params.has('demo')) {
-            // Demo mode: inject synthetic results for visual review
-            _rdb('demo mode start');
-            const demo = {
-                id: 'demo-001',
-                filename: 'sample-traffic.pcap',
-                analysis_time_seconds: 1.24,
-                summary: {
-                    total_packets: 4821,
-                    time_range: { start: '2026-07-18 12:00:00', end: '2026-07-18 12:05:23', duration_seconds: 323 },
-                    protocol_bytes: { TCP: 520000, UDP: 130000, HTTP: 90000, DNS: 60000, TLS: 240000 },
-                    alert_counts: { Critical: 2, High: 3, Medium: 5, Low: 10, Info: 6 },
-                    top_talkers: [
-                        { ip: '10.0.0.5', hostname: 'win-client-1', count: 1200, bytes: 540000 },
-                        { ip: '10.0.0.12', hostname: 'db-primary', count: 800, bytes: 420000 },
-                        { ip: '10.0.1.4', hostname: 'web-frontend', count: 600, bytes: 320000 }
-                    ]
-                },
-                alerts: Array.from({ length: 26 }).map((_, i) => {
-                    const sevs = ['Critical','High','Medium','Low','Info'];
-                    const mins = i * 7 + Math.floor(Math.random()*6);
-                    return {
-                        id: 'ALT-' + (1000+i),
-                        severity: sevs[Math.min(i % 8, 4)],
-                        category: ['Reconnaissance','Malware C2','Data Exfil','Brute Force','Scanning'][i % 5],
-                        message: 'Suspicious activity observed from 10.0.0.' + ((i % 220) + 10) + ' to 10.0.0.' + ((i % 140) + 80) + '.',
-                        first_seen: Date.now() - (323*1000) + mins*1000,
-                        last_seen: Date.now() - (323*1000) + mins*1000 + 4000,
-                        details: {
-                            src_ip: '10.0.0.' + ((i % 220) + 10),
-                            dst_ip: '10.0.0.' + ((i % 140) + 80),
-                            mitre: {
-                                tactic: ['Execution','Persistence','Exfiltration','Discovery','Credential Access'][i % 5],
-                                techniques: [
-                                    { id: 'T1059', name: 'Command and Scripting Interpreter' },
-                                    { id: 'T1078', name: 'Valid Accounts' },
-                                    { id: 'T1041', name: 'Exfiltration Over C2 Channel' }
-                                ].slice(0, 1 + (i % 3))
-                            }
-                        }
-                    };
-                }),
-                connections: [
-                    { src: '10.0.0.5', dst: '10.0.0.12', protocol: 'TCP', bytes: 210000 },
-                    { src: '10.0.0.5', dst: '10.0.0.80', protocol: 'UDP', bytes: 120000 },
-                    { src: '10.0.0.12', dst: '10.0.1.4', protocol: 'TLS', bytes: 180000 },
-                    { src: '10.0.0.80', dst: '10.0.0.5', protocol: 'TCP', bytes: 95000 }
-                ],
-                hosts: [
-                    { ip: '10.0.0.5', hostname: 'win-client-1', os_guess: 'Windows 11', country: 'IL', asn: 'AS12345' },
-                    { ip: '10.0.0.12', hostname: 'db-primary', os_guess: 'Ubuntu 22.04', country: 'IL', asn: 'AS54321' },
-                    { ip: '10.0.1.4', hostname: 'web-frontend', os_guess: 'Debian 12', country: 'IL', asn: 'AS54321' }
-                ],
-                evidence_chain: [
-                    { source: 'pcap_hash', hash: 'sha256:' + 'a'.repeat(64), artifact: 'sample-traffic.pcap', collected_at: Date.now() },
-                    { source: 'suricata_eve', hash: 'sha256:' + 'b'.repeat(64), artifact: 'eve.json', collected_at: Date.now() },
-                    { source: 'zeek_logs', hash: null, artifact: 'conn.log', collected_at: Date.now() }
-                ]
-            };
-            if (loadingEl) loadingEl.classList.add('d-none');
-            if (contentEl) contentEl.classList.remove('d-none');
-            if (errorEl) errorEl.classList.add('d-none');
-            renderResults(demo);
-        } else if (analysisId) {
+        if (analysisId) {
             loadResults(analysisId);
         } else {
-            document.getElementById('loading-state').classList.add('d-none');
-            document.getElementById('error-state').classList.remove('d-none');
-            var errEl = document.getElementById('results-error-message');
-            if (errEl) errEl.textContent = 'No analysis ID in URL.';
+            const loadingEl = document.getElementById('loading-state');
+            const errorEl = document.getElementById('error-state');
+            const msgEl = document.getElementById('results-error-message');
+            const hintEl = document.getElementById('error-hint');
+            if (loadingEl) loadingEl.classList.add('d-none');
+            if (errorEl) errorEl.classList.remove('d-none');
+            if (msgEl) msgEl.textContent = 'No analysis ID provided.';
+            if (hintEl) hintEl.textContent = 'Upload a PCAP on the home page to generate a report, then open the results link.';
         }
     }
 });
