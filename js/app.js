@@ -173,6 +173,7 @@ function uploadFile(file) {
     const estAnalysisSec = Math.max(8, Math.round(file.size / (1024 * 1024) * 2));
 
     const setBar = pct => { if (barEl) barEl.style.width = Math.min(100, Math.max(0, pct)) + '%'; };
+    const addBar = delta => { if (!barEl) return; const cur = parseFloat(barEl.style.width) || 0; barEl.style.width = Math.min(100, Math.max(0, cur + delta)) + '%'; };
 
     const showError = msg => {
         progress.classList.add('d-none');
@@ -185,13 +186,20 @@ function uploadFile(file) {
         if (statusEl) statusEl.textContent = 'Analyzing…';
         setBar(45);
         let elapsed = 0;
+        const totalGain = 47; // 45 -> 92
+        const intervalMs = 250;
         const timer = setInterval(() => {
-            elapsed++;
-            // Slides from 45 → 92 over estAnalysisSec seconds
-            setBar(45 + Math.min(47, (elapsed / estAnalysisSec) * 47));
-            const rem = Math.max(0, estAnalysisSec - elapsed);
+            elapsed += intervalMs;
+            const progressFraction = Math.min(1, elapsed / (estAnalysisSec * 1000));
+            addBar((totalGain * progressFraction) - (totalGain * ((elapsed - intervalMs) / (estAnalysisSec * 1000))));
+            const rem = Math.max(0, Math.ceil((estAnalysisSec * 1000 - elapsed) / 1000));
             if (estEl) estEl.textContent = rem > 2 ? `~${rem}s remaining` : 'Almost done…';
-        }, 1000);
+            if (elapsed >= estAnalysisSec * 1000) {
+                clearInterval(timer);
+                setBar(92);
+                if (estEl) estEl.textContent = 'Finalizing…';
+            }
+        }, intervalMs);
 
         pollJob(jobId, null, 1500, 300_000)
             .then(id => {
