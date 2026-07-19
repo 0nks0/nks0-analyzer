@@ -9,7 +9,7 @@ if (window.self !== window.top) { try { window.top.location = window.self.locati
 // ─── Backend URL ──────────────────────────────────────────────────────────────
 
 const API_BASE = 'https://nks0-api.onrender.com';
-const '1.4.4'; // bump this when releasing a new version
+const APP_VERSION = '1.4.5'; // bump this when releasing a new version
 function getApiBase() { return API_BASE; }
 function apiHeaders() { return {}; }
 
@@ -209,6 +209,9 @@ function uploadFile(file) {
 
     // Use XHR so we can track upload progress
     const xhr = new XMLHttpRequest();
+    const traceEl = document.getElementById('results-debug-panel') || document.getElementById('inline-debug');
+    function trace(t){ if(traceEl){ var d=document.createElement('div'); d.textContent='[upload] '+t; traceEl.appendChild(d); traceEl.scrollTop=traceEl.scrollHeight; } }
+    trace('start upload file=' + (file ? file.name : 'null') + ' size=' + (file ? file.size : 0));
     const fd  = new FormData();
     fd.append('file', file);
 
