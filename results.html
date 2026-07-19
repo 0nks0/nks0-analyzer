@@ -38,6 +38,7 @@
         <div id="loading-state" class="text-center mt-5">
             <div class="spinner-border text-info" role="status"></div>
             <p class="text-secondary mt-2">Loading results…</p>
+            <p class="text-secondary small mt-1" id="loading-hint"></p>
         </div>
 
         <!-- Results -->
@@ -344,19 +345,26 @@
             integrity="sha384-u5N8qJeJOO2iqNjIKTdl6KeKsEikMAmCUBPc6sC6uGpgL34aPJ4VgNhuhumedpEk" crossorigin="anonymous"></script>
     <script src="js/app.js?v=1.4.2"></script>
     <script>
-      if (document.getElementById('loading-state') && !window.__RESULTS_DEBUG_DONE) {
-        var _inlineLog = document.createElement('div');
-        _inlineLog.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#0d1117;color:#c9d1d9;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;padding:10px;z-index:9999;border-top:1px solid #30363d;max-height:35vh;overflow:auto';
-        _inlineLog.id = 'inline-debug';
-        document.body.appendChild(_inlineLog);
-        ['inline: page loaded','inline: loading-state present','inline: waiting for app.js'].forEach(function(t){ var d=document.createElement('div'); d.textContent='[inline] '+t; _inlineLog.appendChild(d); });
-        window.__RESULTS_DEBUG_DONE = 1;
-      }
-      window.onerror = function(msg, url, line) {
-        var panel = document.getElementById('inline-debug');
-        if (panel) { var d=document.createElement('div'); d.style.color='#f85149'; d.textContent='[ERROR] '+msg+' @ '+url+':'+line; panel.appendChild(d); panel.scrollTop=panel.scrollHeight; }
-        return false;
-      };
+      (function(){
+        var panel = document.createElement('div');
+        panel.id = 'results-debug-panel';
+        panel.style.cssText = 'display:block;position:fixed;left:0;right:0;bottom:0;max-height:35vh;overflow:auto;background:#0d1117;color:#c9d1d9;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;padding:10px;z-index:9999;border-top:1px solid #30363d';
+        document.body.appendChild(panel);
+        var hint = document.getElementById('loading-hint');
+        function log(t){ var d=document.createElement('div'); d.textContent='[page] '+t; panel.appendChild(d); panel.scrollTop=panel.scrollHeight; if(hint){ hint.textContent = t; } }
+        try {
+          if (document.getElementById('loading-state')) {
+            log('inline ready');
+            var params = new URLSearchParams(window.location.search);
+            log('params: id=' + (params.get('id') || 'none') + ' demo=' + params.has('demo'));
+            log('waiting for app.js...');
+          }
+        } catch(e){ log('inline init error: ' + e.message); }
+        window.onerror = function(msg, url, line){
+          var d=document.createElement('div'); d.style.color='#f85149'; d.textContent='[ERROR] '+msg+' @ '+url+':'+line; panel.appendChild(d); panel.scrollTop=panel.scrollHeight;
+          return false;
+        };
+      })();
     </script>
 </body>
 </html>
