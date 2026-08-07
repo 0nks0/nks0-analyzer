@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NKS0 — Test Suite</title>
+    <meta name="robots" content="noindex">
+    <style>
+        body { background:#0d1117; color:#e6edf3; font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;
+               margin:0; padding:1.5rem; line-height:1.5; }
+        h1 { font-size:1.3rem; margin:0 0 0.25rem; color:#58a6ff; }
+        .sub { color:#8b949e; font-size:0.85rem; margin-bottom:1.25rem; }
+        #summary { font-weight:700; padding:0.6rem 0.9rem; border-radius:6px; margin-bottom:1rem; display:inline-block; }
+        .pass-all { background:rgba(63,185,80,0.15); color:#3fb950; border:1px solid #3fb950; }
+        .fail-any { background:rgba(248,81,73,0.15); color:#f85149; border:1px solid #f85149; }
+        .group { margin:1.1rem 0 0.4rem; font-weight:600; color:#8b949e; font-size:0.8rem;
+                 text-transform:uppercase; letter-spacing:0.07em; }
+        .case { padding:0.3rem 0.6rem; border-left:3px solid transparent; font-size:0.86rem;
+                font-family:'SFMono-Regular',Consolas,monospace; }
+        .ok   { border-left-color:#3fb950; }
+        .bad  { border-left-color:#f85149; background:rgba(248,81,73,0.07); }
+        .ok::before  { content:'PASS  '; color:#3fb950; font-weight:700; }
+        .bad::before { content:'FAIL  '; color:#f85149; font-weight:700; }
+        .why { display:block; color:#f85149; padding:0.2rem 0 0.3rem 3.4rem; white-space:pre-wrap; }
+        /* Scratch space the render functions need; kept off-screen. */
+        #fixture { position:absolute; left:-10000px; top:0; width:900px; }
+    </style>
+</head>
+<body>
+    <h1>NKS0 test suite</h1>
+    <p class="sub">
+        Zero-dependency. Open this page directly, or serve the repo and visit
+        <code>/tests/</code>. Exercises the real functions from <code>js/app.js</code>.
+    </p>
+
+    <div id="summary">Running…</div>
+    <div id="results"></div>
+
+    <!-- Fixture DOM: the ids the render functions look for. -->
+    <div id="fixture">
+        <div id="sr-status" role="status" aria-live="polite"></div>
+        <div id="alerts-container"></div>
+        <div id="alerts-footer"><span id="alerts-count-label"></span></div>
+        <span id="alert-card-count"></span>
+        <table>
+            <thead id="hosts-table-head">
+                <tr>
+                    <th data-sort-key="ip" aria-sort="none"><button type="button" class="nks-sort-btn">Host<span class="nks-sort-ind"></span></button></th>
+                    <th data-sort-key="bytes_sent" aria-sort="none"><button type="button" class="nks-sort-btn">Sent<span class="nks-sort-ind"></span></button></th>
+                    <th data-sort-key="bytes_received" aria-sort="none"><button type="button" class="nks-sort-btn">Recv<span class="nks-sort-ind"></span></button></th>
+                    <th data-sort-key="alerts" aria-sort="none"><button type="button" class="nks-sort-btn">Alerts<span class="nks-sort-ind"></span></button></th>
+                </tr>
+            </thead>
+            <tbody id="hosts-table-body"></tbody>
+        </table>
+        <canvas id="fixture-chart"></canvas>
+    </div>
+
+    <script>window.NKS_TEST_MODE = true;</script>
+    <script src="../js/app.js"></script>
+    <script src="tests.js"></script>
+</body>
+</html>
