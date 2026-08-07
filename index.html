@@ -11,26 +11,32 @@
           integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"
           integrity="sha384-XGjxtQfXaH2tnPFa9x+ruJTuLE3Aa6LhHSWRr1XeTyhezb4abCG4ccI5AkVDxqC+" crossorigin="anonymous">
-    <link href="css/style.css?v=1.4.0" rel="stylesheet">
+    <link href="css/style.css?v=1.5.0" rel="stylesheet">
 </head>
 <body>
+
+    <a href="#main-content" class="nks-skip-link">Skip to main content</a>
+
+    <!-- Polite live region: JS pushes state changes here via announce(). -->
+    <div id="sr-status" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg nks-navbar">
         <div class="container-fluid">
             <a class="navbar-brand nks-brand" href="index.html">
-                <i class="bi bi-shield-lock-fill"></i> NKS0
+                <i class="bi bi-shield-lock-fill" aria-hidden="true"></i> NKS0
             </a>
             <span class="navbar-text text-secondary d-none d-md-inline">PCAP Analyzer <span id="nav-version" class="opacity-50" style="font-size:0.8em"></span></span>
 
             <div class="ms-auto">
-                <span id="api-status" class="badge nks-status-badge" title="Backend status">—</span>
+                <span id="api-status" class="badge nks-status-badge" role="status" aria-live="polite"
+                      title="Backend status">—</span>
             </div>
         </div>
     </nav>
 
     <!-- Main -->
-    <main class="container-fluid px-4 py-3">
+    <main id="main-content" tabindex="-1" class="container-fluid px-4 py-3">
         <div class="row justify-content-center mt-5">
             <div class="col-lg-7 col-xl-6">
 
@@ -65,10 +71,14 @@
 
                         <!-- Default: drop zone -->
                         <div id="upload-zone" class="nks-upload-zone">
-                            <input type="file" id="pcap-input" accept=".pcap,.pcapng" class="d-none">
+                            <!-- visually-hidden (not d-none) so the input stays in the tab
+                                 order and reachable by screen readers; the zone is a drag
+                                 target and a click shortcut on top of it. -->
+                            <label for="pcap-input" class="visually-hidden">Choose a PCAP file to analyse (.pcap or .pcapng)</label>
+                            <input type="file" id="pcap-input" accept=".pcap,.pcapng" class="visually-hidden">
 
                             <div id="upload-prompt">
-                                <i class="bi bi-cloud-arrow-up fs-1 text-info"></i>
+                                <i class="bi bi-cloud-arrow-up fs-1 text-info" aria-hidden="true"></i>
                                 <p class="mt-2 mb-1 fs-5">Drop a PCAP file here</p>
                                 <p class="text-secondary small">or click to browse &nbsp;&mdash;&nbsp; .pcap / .pcapng</p>
                             </div>
@@ -92,8 +102,8 @@
                             <div id="upload-error" class="d-none">
                                 <i class="bi bi-exclamation-triangle fs-1 text-danger"></i>
                                 <p class="mt-2 mb-1 text-danger" id="error-message">Upload failed.</p>
-                                <button class="btn btn-outline-secondary btn-sm mt-2" id="reset-upload-btn">
-                                    <i class="bi bi-arrow-clockwise"></i> Try again
+                                <button type="button" class="btn btn-outline-secondary btn-sm mt-2" id="reset-upload-btn">
+                                    <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> Try again
                                 </button>
                             </div>
                         </div>
@@ -105,9 +115,10 @@
                 <div id="recent-results" class="mt-4 d-none">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <h6 class="text-secondary mb-0"><i class="bi bi-clock-history"></i> Recent Analyses</h6>
-                        <button class="btn btn-link text-secondary p-0" id="clear-recent-btn"
-                                style="font-size:0.75rem;text-decoration:none">
-                            <i class="bi bi-trash3"></i> Clear
+                        <button type="button" class="btn btn-link text-secondary p-0" id="clear-recent-btn"
+                                style="font-size:0.75rem;text-decoration:none"
+                                aria-label="Clear recent analyses from this device">
+                            <i class="bi bi-trash3" aria-hidden="true"></i> Clear
                         </button>
                     </div>
                     <div id="recent-list"></div>
@@ -135,6 +146,6 @@
             integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"
             integrity="sha384-vsrfeLOOY6KuIYKDlmVH5UiBmgIdB1oEf7p01YgWHuqmOHfZr374+odEv96n9tNC" crossorigin="anonymous"></script>
-    <script src="js/app.js?v=1.4.0"></script>
+    <script src="js/app.js?v=1.5.0"></script>
 </body>
 </html>

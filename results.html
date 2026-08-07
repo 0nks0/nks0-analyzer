@@ -12,34 +12,40 @@
           integrity="sha384-XGjxtQfXaH2tnPFa9x+ruJTuLE3Aa6LhHSWRr1XeTyhezb4abCG4ccI5AkVDxqC+" crossorigin="anonymous">
     <link href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.css" rel="stylesheet"
           integrity="sha384-b8ANgTJvdlAnWM5YGMpKn7Kodm+1k7NYNG9zdjTCcZcKatzYHwZ0RLdWarbJJVzU" crossorigin="anonymous">
-    <link href="css/style.css" rel="stylesheet">
+    <link href="css/style.css?v=1.5.0" rel="stylesheet">
 </head>
 <body>
+
+    <a href="#main-content" class="nks-skip-link">Skip to main content</a>
+
+    <!-- Polite live region: JS pushes state changes here via announce(). -->
+    <div id="sr-status" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg nks-navbar">
         <div class="container-fluid">
             <a class="navbar-brand nks-brand" href="index.html">
-                <i class="bi bi-shield-lock-fill"></i> NKS0
+                <i class="bi bi-shield-lock-fill" aria-hidden="true"></i> NKS0
             </a>
             <span class="navbar-text text-secondary d-none d-md-inline">Analysis Results</span>
             <div class="ms-auto">
-                <span id="api-status" class="badge nks-status-badge" title="Backend status">—</span>
+                <span id="api-status" class="badge nks-status-badge" role="status" aria-live="polite"
+                      title="Backend status">—</span>
             </div>
         </div>
     </nav>
 
     <!-- Main -->
-    <main class="container-fluid px-3 px-md-4 py-3">
+    <main id="main-content" tabindex="-1" class="container-fluid px-3 px-md-4 py-3">
 
         <!-- Loading -->
         <div id="loading-state" class="text-center mt-5">
-            <div class="spinner-border text-info" role="status"></div>
+            <div class="spinner-border text-info" role="status" aria-hidden="true"></div>
             <p class="text-secondary mt-2">Loading results…</p>
         </div>
 
         <!-- Results -->
-        <div id="results-content" class="d-none">
+        <div id="results-content" class="d-none" aria-busy="true">
 
             <!-- Back + export buttons -->
             <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
@@ -47,11 +53,13 @@
                     <i class="bi bi-arrow-left"></i> New analysis
                 </a>
                 <div class="d-flex gap-2">
-                    <button class="btn btn-sm btn-outline-secondary" id="export-csv-btn">
-                        <i class="bi bi-filetype-csv"></i> CSV
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="export-csv-btn"
+                            aria-label="Download alerts as CSV">
+                        <i class="bi bi-filetype-csv" aria-hidden="true"></i> CSV
                     </button>
-                    <button class="btn btn-sm btn-outline-secondary" id="export-json-btn">
-                        <i class="bi bi-download"></i> JSON
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="export-json-btn"
+                            aria-label="Download full JSON report">
+                        <i class="bi bi-download" aria-hidden="true"></i> JSON
                     </button>
                 </div>
             </div>
@@ -122,13 +130,13 @@
                                     <span class="nks-count-badge ms-1" id="alert-card-count"></span>
                                 </span>
                                 <div class="d-flex gap-1">
-                                    <button class="btn btn-sm btn-outline-secondary py-0 px-2" id="expand-all-btn"
-                                            title="Expand all">
-                                        <i class="bi bi-arrows-expand"></i>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" id="expand-all-btn"
+                                            title="Expand all" aria-label="Expand all alerts">
+                                        <i class="bi bi-arrows-expand" aria-hidden="true"></i>
                                     </button>
-                                    <button class="btn btn-sm btn-outline-secondary py-0 px-2" id="collapse-all-btn"
-                                            title="Collapse all">
-                                        <i class="bi bi-arrows-collapse"></i>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2" id="collapse-all-btn"
+                                            title="Collapse all" aria-label="Collapse all alerts">
+                                        <i class="bi bi-arrows-collapse" aria-hidden="true"></i>
                                     </button>
                                 </div>
                             </div>
@@ -136,12 +144,13 @@
                                 <div id="alert-filter-bar"></div>
                                 <div class="d-flex gap-1 align-items-center ms-auto">
                                     <div class="input-group input-group-sm" style="max-width:220px">
+                                        <label for="alert-ip-search" class="visually-hidden">Search alerts by IP or category</label>
                                         <input type="search" id="alert-ip-search"
                                             class="form-control form-control-sm nks-alert-search"
                                             placeholder="Search IP, category…">
                                         <button class="btn btn-outline-secondary d-none" id="search-clear-btn"
-                                                type="button">
-                                            <i class="bi bi-x"></i>
+                                                type="button" title="Clear search" aria-label="Clear search">
+                                            <i class="bi bi-x" aria-hidden="true"></i>
                                         </button>
                                     </div>
                                 </div>
@@ -179,10 +188,18 @@
                                 <table class="table table-sm table-hover mb-0 nks-table">
                                     <thead id="hosts-table-head">
                                         <tr>
-                                            <th>Host</th>
-                                            <th class="text-end">Sent</th>
-                                            <th class="text-end">Recv</th>
-                                            <th class="text-end d-none d-sm-table-cell">Alerts</th>
+                                            <th scope="col" data-sort-key="ip" aria-sort="none">
+                                                <button type="button" class="nks-sort-btn">Host<span class="nks-sort-ind" aria-hidden="true"></span></button>
+                                            </th>
+                                            <th scope="col" class="text-end" data-sort-key="bytes_sent" aria-sort="none">
+                                                <button type="button" class="nks-sort-btn">Sent<span class="nks-sort-ind" aria-hidden="true"></span></button>
+                                            </th>
+                                            <th scope="col" class="text-end" data-sort-key="bytes_received" aria-sort="none">
+                                                <button type="button" class="nks-sort-btn">Recv<span class="nks-sort-ind" aria-hidden="true"></span></button>
+                                            </th>
+                                            <th scope="col" class="text-end d-none d-sm-table-cell" data-sort-key="alerts" aria-sort="none">
+                                                <button type="button" class="nks-sort-btn">Alerts<span class="nks-sort-ind" aria-hidden="true"></span></button>
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody id="hosts-table-body"></tbody>
@@ -265,6 +282,6 @@
             integrity="sha384-vsrfeLOOY6KuIYKDlmVH5UiBmgIdB1oEf7p01YgWHuqmOHfZr374+odEv96n9tNC" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js"
             integrity="sha384-u5N8qJeJOO2iqNjIKTdl6KeKsEikMAmCUBPc6sC6uGpgL34aPJ4VgNhuhumedpEk" crossorigin="anonymous"></script>
-    <script src="js/app.js?v=1.3.5"></script>
+    <script src="js/app.js?v=1.5.0"></script>
 </body>
 </html>

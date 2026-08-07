@@ -9,7 +9,7 @@ if (window.self !== window.top) { try { window.top.location = window.self.locati
 // ─── Backend URL ──────────────────────────────────────────────────────────────
 
 const API_BASE = 'https://nks0-api.onrender.com';
-const APP_VERSION = '1.4.0'; // bump this when releasing a new version
+const APP_VERSION = '1.5.0'; // bump this when releasing a new version
 function getApiBase() { return API_BASE; }
 function apiHeaders() { return {}; }
 
@@ -25,12 +25,15 @@ function initConnectionBar() {
     setInterval(checkApiStatus, 30_000);
 }
 
-function setApiStatus(text, kind) {
+function setApiStatus(text, kind, title) {
     const el = document.getElementById('api-status');
     if (!el) return;
     el.textContent = text;
     el.className = 'badge nks-status-badge' +
-        (kind === 'ok' ? ' nks-status-ok' : kind === 'error' ? ' nks-status-error' : '');
+        (kind === 'ok'    ? ' nks-status-ok'    :
+         kind === 'error' ? ' nks-status-error' :
+         kind === 'wake'  ? ' nks-status-wake'  : '');
+    el.title = title || 'Backend status';
 }
 
 function fetchWithTimeout(url, opts = {}, ms = 30_000) {
@@ -40,12 +43,52 @@ function fetchWithTimeout(url, opts = {}, ms = 30_000) {
         .finally(() => clearTimeout(tid));
 }
 
+// The backend runs on a free tier that sleeps after ~15 minutes idle. A request
+// to a sleeping instance hangs while the container boots — routinely 30-60s.
+// A short timeout therefore reports "Offline" for a service that is merely
+// waking, which is the common case on the first visit after a quiet spell.
+//
+// Strategy: probe briefly first (a warm backend answers in ~200ms), and only if
+// that fails fall back to a long probe while showing "Starting…". "Offline" is
+// reserved for a backend that failed to answer even the long probe.
+const _HEALTH_WARM_TIMEOUT_MS = 8_000;
+const _HEALTH_WAKE_TIMEOUT_MS = 75_000;
+let _healthProbeInFlight = false;
+let _apiEverOnline = false;
+
 function checkApiStatus() {
-    setApiStatus('…', '');
-    fetchWithTimeout(API_BASE + '/api/health', {}, 8_000)
+    if (_healthProbeInFlight) return;   // don't stack probes on the 30s poll
+    _healthProbeInFlight = true;
+
+    // Only show the neutral placeholder on the very first check — re-showing it
+    // on every poll makes a healthy badge flicker.
+    if (!_apiEverOnline) setApiStatus('…', '', 'Checking backend…');
+
+    const onOnline = () => {
+        const firstTime = !_apiEverOnline;
+        _apiEverOnline = true;
+        _healthProbeInFlight = false;
+        setApiStatus('Online', 'ok', 'Backend is responding');
+        // Stats are fetched once at load and silently skipped if the backend was
+        // still asleep — retry now that we know it is awake.
+        if (firstTime && document.getElementById('site-stats-bar')) loadSiteStats();
+    };
+
+    fetchWithTimeout(API_BASE + '/api/health', {}, _HEALTH_WARM_TIMEOUT_MS)
         .then(r => r.ok ? r.json() : Promise.reject())
-        .then(() => setApiStatus('Online', 'ok'))
-        .catch(() => setApiStatus('Offline', 'error'));
+        .then(onOnline)
+        .catch(() => {
+            // Warm probe failed — the instance is probably cold. Say so rather
+            // than claiming it's down, and give it time to boot.
+            setApiStatus('Starting…', 'wake', 'Backend is waking up — this can take up to a minute');
+            return fetchWithTimeout(API_BASE + '/api/health', {}, _HEALTH_WAKE_TIMEOUT_MS)
+                .then(r => r.ok ? r.json() : Promise.reject())
+                .then(onOnline)
+                .catch(() => {
+                    _healthProbeInFlight = false;
+                    setApiStatus('Offline', 'error', 'Backend did not respond — it may be down');
+                });
+        });
 }
 
 async function loadSiteStats() {
@@ -116,7 +159,13 @@ function initUpload() {
     const input = document.getElementById('pcap-input');
     if (!zone || !input) return;
 
-    zone.addEventListener('click', () => input.click());
+    zone.addEventListener('click', (e) => {
+        // Ignore clicks originating from the file input itself (which would
+        // recurse) or from a real control inside the zone such as the
+        // "Try again" button — otherwise the picker reopens on top of them.
+        if (e.target.closest('#pcap-input, button, a')) return;
+        input.click();
+    });
     zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('drag-over'); });
     zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
     zone.addEventListener('drop', (e) => {
@@ -335,6 +384,32 @@ let _osGuesses     = {};
 let _ipSearchTimer = null;
 let _currentAnalysisId = null;
 
+// ─── Screen-reader announcements ─────────────────────────────────────────────
+
+// Push a message to the polite live region (#sr-status). Used for state changes
+// that are otherwise conveyed only visually: results finishing loading, filter
+// and search result counts, bulk expand/collapse.
+function announce(message) {
+    const el = document.getElementById('sr-status');
+    if (!el) return;
+    // Clear first so repeating the same string is still announced.
+    el.textContent = '';
+    window.setTimeout(() => { el.textContent = message; }, 60);
+}
+
+// ─── Alert disclosure (keyboard + screen-reader accessible) ──────────────────
+
+// Single source of truth for expand/collapse so the `.expanded` class and the
+// summary button's aria-expanded never drift apart. Rows with no details panel
+// have no summary button and are left untouched.
+function setAlertExpanded(itemEl, expanded) {
+    if (!itemEl) return;
+    const btn = itemEl.querySelector('.nks-alert-summary[aria-expanded]');
+    if (!btn) return;
+    itemEl.classList.toggle('expanded', expanded);
+    btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+}
+
 // ─── Load results ─────────────────────────────────────────────────────────────
 
 function loadResults(analysisId) {
@@ -351,15 +426,25 @@ function loadResults(analysisId) {
         .then(data => {
             _rawData = data;
             if (loadingEl) loadingEl.classList.add('d-none');
-            if (contentEl) contentEl.classList.remove('d-none');
+            if (contentEl) {
+                contentEl.classList.remove('d-none');
+                contentEl.setAttribute('aria-busy', 'false');
+            }
             renderResults(data);
             if (data.is_guest) showGuestBanner(data.expires_at);
+            // The loading → results swap is silent for screen readers; say what landed.
+            const counts = (data.summary || {}).alert_counts || {};
+            const total  = Object.values(counts).reduce((a, b) => a + b, 0);
+            announce(`Analysis of ${data.filename || 'capture'} loaded. `
+                   + `${total} alert${total !== 1 ? 's' : ''} found.`);
         })
         .catch(err => {
             if (loadingEl) loadingEl.classList.add('d-none');
             if (errorEl)   errorEl.classList.remove('d-none');
+            if (contentEl) contentEl.setAttribute('aria-busy', 'false');
             const msgEl = document.getElementById('results-error-message');
             if (msgEl) msgEl.textContent = err.message;
+            announce(`Failed to load results: ${err.message}`);
         });
 }
 
@@ -518,15 +603,25 @@ function _alertMatchesIpSearch(alert) {
 }
 
 function expandAllAlerts() {
-    document.querySelectorAll('.nks-alert-item:not(.expanded)').forEach(el => el.classList.add('expanded'));
+    const items = document.querySelectorAll('.nks-alert-item:not(.expanded)');
+    items.forEach(el => setAlertExpanded(el, true));
+    announce(`Expanded ${items.length} alert${items.length !== 1 ? 's' : ''}`);
 }
 function collapseAllAlerts() {
-    document.querySelectorAll('.nks-alert-item.expanded').forEach(el => el.classList.remove('expanded'));
+    const items = document.querySelectorAll('.nks-alert-item.expanded');
+    items.forEach(el => setAlertExpanded(el, false));
+    announce(`Collapsed ${items.length} alert${items.length !== 1 ? 's' : ''}`);
 }
 
 // ─── Apply filters ────────────────────────────────────────────────────────────
 
+// Suppresses the count announcement on the very first render, where the
+// results-loaded announcement already covers the alert count.
+let _filtersInitialised = false;
+
 function applyFilters() {
+    // Changing the filter set is a fresh view — start from the first page again.
+    _alertRenderLimit = _ALERT_PAGE_SIZE;
     const filtered = _allAlerts.filter(a => {
         const sev = a.severity || 'Info';
         const cat = a.category || 'Generic';
@@ -554,6 +649,15 @@ function applyFilters() {
         label.textContent = filtered.length + ' of ' + _allAlerts.length + ' alerts';
         footer.classList.remove('d-none');
     }
+
+    // Filtering/searching only changes the list visually — announce the new
+    // count so it isn't a silent change for screen-reader users.
+    if (_filtersInitialised) {
+        announce(filtered.length === _allAlerts.length
+            ? `Showing all ${_allAlerts.length} alerts`
+            : `Showing ${filtered.length} of ${_allAlerts.length} alerts`);
+    }
+    _filtersInitialised = true;
 }
 
 // ─── Alert list renderer ──────────────────────────────────────────────────────
@@ -569,12 +673,21 @@ function _buildSeeAlsoMap(alerts) {
     return map;
 }
 
+// A noisy capture can produce hundreds of alerts; building DOM for all of them
+// (each with an expandable details panel) is slow on mobile. Render a page at a
+// time and let the user ask for more. The cap is per-render state, so changing
+// filters resets it.
+const _ALERT_PAGE_SIZE = 150;
+let _alertRenderLimit  = _ALERT_PAGE_SIZE;
+let _lastSortedAlerts  = [];
+
 function renderAlertList(alerts) {
     const container = document.getElementById('alerts-container');
     if (!container) return;
 
     if (!alerts.length) {
         container.innerHTML = '<div class="text-center text-secondary p-4">No matching alerts</div>';
+        _lastSortedAlerts = [];
         return;
     }
 
@@ -582,8 +695,13 @@ function renderAlertList(alerts) {
     const sevOrder = { Critical: 0, High: 1, Medium: 2, Low: 3, Info: 4 };
     const sorted   = [...alerts].sort((a, b) => (sevOrder[a.severity] ?? 5) - (sevOrder[b.severity] ?? 5));
     const seeAlso  = _buildSeeAlsoMap(sorted);
+    _lastSortedAlerts = sorted;
 
-    container.innerHTML = sorted.map((alert, idx) => {
+    // data-idx values stay indices into `sorted`, so see-also links and the
+    // timeline keep working across a "show more".
+    const visible = sorted.slice(0, _alertRenderLimit);
+
+    container.innerHTML = visible.map((alert, idx) => {
         const sev = sevClass(alert.severity);
 
         const confHtml = (() => {
@@ -594,9 +712,12 @@ function renderAlertList(alerts) {
             return `<span class="nks-conf-badge" style="color:${col}">${pct}%</span>`;
         })();
 
+        // Rendered as a <span class="d-block"> rather than a <div> because it
+        // sits inside the summary <button>, whose content model only permits
+        // phrasing content.
         const tsHtml = (() => {
             const r = formatTsRange(alert.first_seen, alert.last_seen);
-            return r ? `<div class="nks-alert-time"><i class="bi bi-clock" style="font-size:0.6rem"></i> ${escapeHtml(r)}</div>` : '';
+            return r ? `<span class="nks-alert-time d-block"><i class="bi bi-clock" style="font-size:0.6rem"></i> ${escapeHtml(r)}</span>` : '';
         })();
 
         const richHtml   = _renderAlertBody(alert);
@@ -605,22 +726,66 @@ function renderAlertList(alerts) {
             : '';
         const seeAlsoHtml = _renderSeeAlso(alert, idx, seeAlso);
 
+        const detailsId = `alert-details-${idx}`;
         const detailsHtml = (richHtml || tagsHtml || seeAlsoHtml)
-            ? `<div class="nks-alert-details">${richHtml}${tagsHtml}${seeAlsoHtml}</div>`
+            ? `<div class="nks-alert-details" id="${detailsId}">${richHtml}${tagsHtml}${seeAlsoHtml}</div>`
             : '';
 
-        return `<div class="nks-alert-item" data-idx="${idx}" data-sev="${escapeHtml(alert.severity)}">
-            <div class="d-flex align-items-start gap-2" style="padding-right:1.4rem">
-                <span class="nks-sev-pill ${sev}">${escapeHtml(alert.severity)}</span>
-                <div class="flex-grow-1" style="min-width:0">
+        // The summary is a real <button> so expand/collapse works with the
+        // keyboard and is announced as a disclosure. Rows with nothing to
+        // expand render an inert <span> instead, so keyboard users don't tab
+        // to a dead control.
+        const summaryInner =
+               `<span class="nks-sev-pill ${sev}">${escapeHtml(alert.severity)}</span>
+                <span class="flex-grow-1" style="min-width:0">
                     <span>${_enrichMsg(alert.message)}</span>${confHtml}
-                    <div class="text-secondary" style="font-size:0.73rem">${escapeHtml(alert.category || '')}</div>
+                    <span class="d-block text-secondary" style="font-size:0.73rem">${escapeHtml(alert.category || '')}</span>
                     ${tsHtml}
-                </div>
+                </span>`;
+        const summaryHtml = detailsHtml
+            ? `<button type="button" class="nks-alert-summary d-flex align-items-start gap-2 w-100"
+                    aria-expanded="false" aria-controls="${detailsId}">${summaryInner}</button>`
+            : `<span class="nks-alert-summary d-flex align-items-start gap-2 w-100">${summaryInner}</span>`;
+
+        return `<div class="nks-alert-item${detailsHtml ? '' : ' nks-no-details'}" data-idx="${idx}" data-sev="${escapeHtml(alert.severity)}">
+            <div class="d-flex align-items-start gap-2" style="padding-right:1.4rem">
+                ${summaryHtml}
             </div>
             ${detailsHtml}
         </div>`;
     }).join('');
+
+    const hidden = sorted.length - visible.length;
+    if (hidden > 0) {
+        container.insertAdjacentHTML('beforeend',
+            `<div class="nks-show-more-wrap">
+                <button type="button" class="nks-show-more" id="alerts-show-more">
+                    Show ${Math.min(hidden, _ALERT_PAGE_SIZE)} more
+                    <span class="text-secondary">(${hidden} hidden)</span>
+                </button>
+            </div>`);
+    }
+}
+
+// Raise the render cap far enough to include `idx`, then re-render. Returns
+// true when it actually had to grow the list.
+function _ensureAlertRendered(idx) {
+    if (idx < _alertRenderLimit || idx >= _lastSortedAlerts.length) return false;
+    _alertRenderLimit = Math.ceil((idx + 1) / _ALERT_PAGE_SIZE) * _ALERT_PAGE_SIZE;
+    renderAlertList(_lastSortedAlerts);
+    return true;
+}
+
+function showMoreAlerts() {
+    _alertRenderLimit += _ALERT_PAGE_SIZE;
+    renderAlertList(_lastSortedAlerts);
+    const shown = Math.min(_alertRenderLimit, _lastSortedAlerts.length);
+    announce(`Showing ${shown} of ${_lastSortedAlerts.length} alerts`);
+    // Keep keyboard focus in place: land on the new "show more", or the last
+    // alert once everything is rendered.
+    const next = document.getElementById('alerts-show-more')
+              || document.querySelector('.nks-alert-item:last-of-type .nks-alert-summary[aria-expanded]');
+    if (next) next.focus({ preventScroll: true });
 }
 
 // ─── See-also cross-links ─────────────────────────────────────────────────────
@@ -631,17 +796,24 @@ function _renderSeeAlso(alert, alertIdx, seeAlsoMap) {
     const related = (seeAlsoMap[ip] || []).filter(x => x.idx !== alertIdx);
     if (!related.length) return '';
     const pills = related.slice(0, 6).map(r =>
-        `<span class="nks-see-also-pill nks-sev-pill ${sevClass(r.severity)}"
-              data-idx="${r.idx}">${escapeHtml(r.category)}</span>`
+        `<button type="button" class="nks-see-also-pill nks-sev-pill ${sevClass(r.severity)}"
+              aria-label="Go to related ${escapeHtml(r.severity)} alert: ${escapeHtml(r.category)}"
+              data-idx="${r.idx}">${escapeHtml(r.category)}</button>`
     ).join('');
     return `<div class="nks-see-also"><i class="bi bi-link-45deg"></i> Same host: ${pills}</div>`;
 }
 
 function scrollToAlert(idx) {
+    // The target may sit past the render cap (see-also links and timeline dots
+    // address the full sorted list) — grow the list first if so.
+    _ensureAlertRendered(idx);
     const el = document.querySelector(`[data-idx="${idx}"]`);
     if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.classList.add('expanded');
+        setAlertExpanded(el, true);
+        // Move focus with the scroll so keyboard users follow the jump.
+        const btn = el.querySelector('.nks-alert-summary[aria-expanded]');
+        if (btn) btn.focus({ preventScroll: true });
     }
 }
 
@@ -1698,6 +1870,36 @@ function exportCsv(baseName) {
     URL.revokeObjectURL(url);
 }
 
+// ─── Chart accessibility ─────────────────────────────────────────────────────
+
+// A <canvas> is opaque to assistive tech: the pixels carry the whole message.
+// Give each chart a spoken summary via role="img" + aria-label, and emit a
+// visually-hidden table carrying the same numbers so the underlying data is
+// reachable without seeing the chart.
+function _describeChart(canvas, label, rows, format) {
+    if (!canvas) return;
+    canvas.setAttribute('role', 'img');
+    canvas.setAttribute('aria-label', label);
+
+    const tableId = canvas.id + '-a11y-table';
+    const existing = document.getElementById(tableId);
+    if (existing) existing.remove();
+    if (!rows || !rows.length) return;
+
+    const fmt = format || (v => String(v));
+    const table = document.createElement('table');
+    table.id = tableId;
+    table.className = 'visually-hidden';
+    table.innerHTML =
+        `<caption>${escapeHtml(label)}</caption>` +
+        '<thead><tr><th scope="col">Name</th><th scope="col">Value</th></tr></thead><tbody>' +
+        rows.map(([k, v]) =>
+            `<tr><th scope="row">${escapeHtml(String(k))}</th><td>${escapeHtml(fmt(v))}</td></tr>`
+        ).join('') +
+        '</tbody>';
+    canvas.insertAdjacentElement('afterend', table);
+}
+
 // ─── Protocol chart (horizontal bar) ─────────────────────────────────────────
 
 let _protocolChart = null;
@@ -1737,6 +1939,15 @@ function renderProtocolChart(protocolBytes) {
             },
         },
     });
+
+    const top = entries[0];
+    _describeChart(
+        canvas,
+        `Protocol distribution by traffic volume. ${entries.length} protocol${entries.length !== 1 ? 's' : ''}, `
+        + `highest is ${top[0]} at ${formatBytes(top[1])}.`,
+        entries,
+        formatBytes
+    );
 }
 
 // ─── Severity bar chart ───────────────────────────────────────────────────────
@@ -1762,13 +1973,28 @@ function renderSeverityChart(counts) {
             },
         },
     });
+
+    const total = values.reduce((a, b) => a + b, 0);
+    _describeChart(
+        canvas,
+        `Alert count by severity. ${total} alert${total !== 1 ? 's' : ''} total: `
+        + labels.map((l, i) => `${values[i]} ${l}`).join(', ') + '.',
+        labels.map((l, i) => [l, values[i]])
+    );
 }
 
 // ─── Hosts table ──────────────────────────────────────────────────────────────
 
+// Column sort state. `key: null` means "leave the server's ordering alone",
+// which is what the table shows until the user picks a column.
+let _hostsSort    = { key: null, dir: 'desc' };
+let _lastTalkers  = [];
+let _ipv6Expanded = false;
+
 function renderHostsTable(talkers) {
     const tbody = document.getElementById('hosts-table-body');
     if (!tbody) return;
+    _lastTalkers = talkers || [];
     if (!talkers.length) {
         tbody.innerHTML = '<tr><td colspan="4" class="text-center text-secondary">No hosts</td></tr>';
         return;
@@ -1787,8 +2013,31 @@ function renderHostsTable(talkers) {
         });
     });
 
-    const ipv4 = talkers.filter(h => !h.ip.includes(':'));
-    const ipv6 = talkers.filter(h =>  h.ip.includes(':'));
+    // Sorting is applied within each address family so the IPv4 / IPv6 grouping
+    // survives. Alert counts come from alertsByIp, computed just above.
+    const sortValue = (h) => {
+        switch (_hostsSort.key) {
+            case 'ip':             return h.ip;
+            case 'bytes_sent':     return h.bytes_sent     || 0;
+            case 'bytes_received': return h.bytes_received || 0;
+            case 'alerts':         return (alertsByIp[h.ip] || {}).count || 0;
+            default:               return null;
+        }
+    };
+    const applySort = (list) => {
+        if (!_hostsSort.key) return list;   // untouched: keep server ordering
+        const mul = _hostsSort.dir === 'asc' ? 1 : -1;
+        return [...list].sort((a, b) => {
+            const av = sortValue(a), bv = sortValue(b);
+            if (typeof av === 'string') {
+                return av.localeCompare(bv, undefined, { numeric: true }) * mul;
+            }
+            return (av - bv) * mul;
+        });
+    };
+
+    const ipv4 = applySort(talkers.filter(h => !h.ip.includes(':')));
+    const ipv6 = applySort(talkers.filter(h =>  h.ip.includes(':')));
 
     const rowHtml = h => {
         const hnPart = h.hostname ? ` <span class="nks-hostname">(${escapeHtml(h.hostname)})</span>` : '';
@@ -1814,24 +2063,76 @@ function renderHostsTable(talkers) {
 
     let html = ipv4.map(rowHtml).join('');
     if (ipv6.length) {
-        html += `<tr id="ipv6-toggle-row" style="cursor:pointer">
+        html += `<tr id="ipv6-toggle-row">
             <td colspan="4" class="text-secondary" style="font-size:0.75rem;padding:0.3rem 0.75rem">
-                <i class="bi bi-chevron-right" id="ipv6-chevron" style="font-size:0.65rem"></i>
-                ${ipv6.length} IPv6 host${ipv6.length > 1 ? 's' : ''} (click to expand)
+                <button type="button" class="nks-ipv6-toggle" aria-expanded="false">
+                    <i class="bi bi-chevron-right" id="ipv6-chevron" style="font-size:0.65rem" aria-hidden="true"></i>
+                    ${ipv6.length} IPv6 host${ipv6.length > 1 ? 's' : ''}
+                </button>
             </td>
-        </tr>
-        <tbody id="ipv6-rows" style="display:none">${ipv6.map(rowHtml).join('')}</tbody>`;
+        </tr>`;
+        // Grouped as a <tr class> list rather than a nested <tbody>: innerHTML
+        // parsed in tbody context drops a nested <tbody> tag entirely.
+        html += ipv6.map(h => rowHtml(h).replace('<tr>', '<tr class="nks-ipv6-row" hidden>')).join('');
     }
     tbody.innerHTML = html;
+    // Re-rendering rebuilds the IPv6 block collapsed; restore what the user chose.
+    if (_ipv6Expanded) _setIpv6Expanded(true);
+    _updateHostsSortIndicators();
+}
+
+function _setIpv6Expanded(expanded) {
+    const rows    = document.querySelectorAll('.nks-ipv6-row');
+    const chevron = document.getElementById('ipv6-chevron');
+    const btn     = document.querySelector('.nks-ipv6-toggle');
+    if (!rows.length) return;
+    _ipv6Expanded = expanded;
+    rows.forEach(r => { r.hidden = !expanded; });
+    if (chevron) chevron.className = `bi bi-chevron-${expanded ? 'down' : 'right'}`;
+    if (btn) btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
 }
 
 function toggleIpv6Rows() {
-    const rows    = document.getElementById('ipv6-rows');
-    const chevron = document.getElementById('ipv6-chevron');
-    if (!rows) return;
-    const hidden = rows.style.display === 'none';
-    rows.style.display = hidden ? '' : 'none';
-    if (chevron) chevron.className = `bi bi-chevron-${hidden ? 'down' : 'right'}`;
+    _setIpv6Expanded(!_ipv6Expanded);
+}
+
+// ─── Hosts table sorting ─────────────────────────────────────────────────────
+
+const _HOSTS_SORT_LABELS = {
+    ip: 'Host', bytes_sent: 'Sent', bytes_received: 'Received', alerts: 'Alerts',
+};
+
+// aria-sort lives on the <th>; the arrow is decorative and hidden from AT.
+function _updateHostsSortIndicators() {
+    const head = document.getElementById('hosts-table-head');
+    if (!head) return;
+    head.querySelectorAll('th[data-sort-key]').forEach(th => {
+        const key    = th.dataset.sortKey;
+        const active = _hostsSort.key === key;
+        th.setAttribute('aria-sort', active ? (_hostsSort.dir === 'asc' ? 'ascending' : 'descending') : 'none');
+        const ind = th.querySelector('.nks-sort-ind');
+        if (ind) ind.textContent = active ? (_hostsSort.dir === 'asc' ? '▲' : '▼') : '';
+    });
+}
+
+function initHostsSorting() {
+    const head = document.getElementById('hosts-table-head');
+    if (!head) return;
+    head.addEventListener('click', (e) => {
+        const btn = e.target.closest('.nks-sort-btn');
+        if (!btn) return;
+        const key = btn.closest('th').dataset.sortKey;
+        if (_hostsSort.key === key) {
+            _hostsSort.dir = _hostsSort.dir === 'asc' ? 'desc' : 'asc';
+        } else {
+            _hostsSort.key = key;
+            // Names read naturally ascending; volumes and counts descending.
+            _hostsSort.dir = key === 'ip' ? 'asc' : 'desc';
+        }
+        renderHostsTable(_lastTalkers);
+        announce(`Top hosts sorted by ${_HOSTS_SORT_LABELS[key] || key}, `
+               + `${_hostsSort.dir === 'asc' ? 'ascending' : 'descending'}`);
+    });
 }
 
 // ─── Alert timeline (SVG) ─────────────────────────────────────────────────────
@@ -1857,6 +2158,14 @@ function renderTimeline(alerts) {
 
     const svgEl = document.getElementById('timeline-svg');
     if (!svgEl) return;
+
+    // The timeline is purely graphical; describe it for assistive tech.
+    svgEl.setAttribute('role', 'img');
+    svgEl.setAttribute('aria-label',
+        `Alert timeline: ${timed.length} timed alerts over ${formatDuration(tspan)} `
+        + `starting ${formatTs(tsMin)}, grouped into ${usedLanes.length} severity lane`
+        + `${usedLanes.length !== 1 ? 's' : ''} (${usedLanes.join(', ')}). `
+        + 'The alert list below carries the same events.');
 
     const LANE_H = 36, LABEL_W = 58, PAD_R = 12, PAD_T = 4, PAD_B = 4;
     const W      = svgEl.getBoundingClientRect().width || 700;
@@ -1942,6 +2251,18 @@ function renderNetworkGraph(connections, alerts, talkers) {
     if (countEl) countEl.textContent = `${nodeSet.size} hosts · ${connections.length} flows`;
 
     const topConns = [...connections].sort((a, b) => b.bytes - a.bytes).slice(0, 18);
+
+    // Canvas graph carries no text; summarise it and expose the drawn flows as
+    // a hidden table so the relationships are readable without the picture.
+    const alertedCount = Object.keys(alertIpSev).length;
+    _describeChart(
+        canvas,
+        `Network flow graph: ${nodeSet.size} hosts and ${connections.length} flows, `
+        + `showing the top ${topConns.length} by volume. `
+        + `${alertedCount} host${alertedCount !== 1 ? 's have' : ' has'} associated alerts.`,
+        topConns.map(c => [`${c.src} to ${c.dst}`, c.bytes]),
+        formatBytes
+    );
     const srcBytes = {}, dstBytes = {};
     topConns.forEach(c => {
         srcBytes[c.src] = (srcBytes[c.src] || 0) + c.bytes;
@@ -2184,6 +2505,7 @@ function initResultsDelegation() {
     const alertsContainer = document.getElementById('alerts-container');
     if (alertsContainer) {
         alertsContainer.addEventListener('click', e => {
+            if (e.target.closest('#alerts-show-more')) { showMoreAlerts(); return; }
             const revealBtn = e.target.closest('.nks-reveal-btn');
             if (revealBtn) {
                 e.stopPropagation();
@@ -2196,8 +2518,13 @@ function initResultsDelegation() {
                 scrollToAlert(Number(seeAlso.dataset.idx));
                 return;
             }
-            const item = e.target.closest('.nks-alert-item');
-            if (item) item.classList.toggle('expanded');
+            // Only the summary button toggles. A native <button> fires click on
+            // Enter and Space, so keyboard activation needs no extra handler.
+            const summary = e.target.closest('.nks-alert-summary[aria-expanded]');
+            if (summary) {
+                const item = summary.closest('.nks-alert-item');
+                setAlertExpanded(item, !item.classList.contains('expanded'));
+            }
         });
     }
 
@@ -2205,6 +2532,19 @@ function initResultsDelegation() {
     const hostsBody = document.getElementById('hosts-table-body');
     if (hostsBody) hostsBody.addEventListener('click', e => {
         if (e.target.closest('#ipv6-toggle-row')) toggleIpv6Rows();
+    });
+
+    // Hosts table — column sorting
+    initHostsSorting();
+
+    // A printed report must contain everything, not just the rendered page —
+    // expand the alert cap and the IPv6 group before the print snapshot.
+    window.addEventListener('beforeprint', () => {
+        if (_lastSortedAlerts.length > _alertRenderLimit) {
+            _alertRenderLimit = _lastSortedAlerts.length;
+            renderAlertList(_lastSortedAlerts);
+        }
+        _setIpv6Expanded(true);
     });
 
     // Timeline SVG circles
@@ -2218,6 +2558,10 @@ function initResultsDelegation() {
 // ─── Auto-init (no inline scripts in HTML needed) ─────────────────────────────
 
 document.addEventListener('DOMContentLoaded', function () {
+    // The test harness loads this file to exercise functions directly; skip the
+    // page bootstrap so tests don't hit the network or touch a real backend.
+    if (window.NKS_TEST_MODE) return;
+
     initConnectionBar();
     if (document.getElementById('site-stats-bar')) loadSiteStats();
 

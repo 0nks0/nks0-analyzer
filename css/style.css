@@ -22,6 +22,33 @@ body {
     min-height: 100vh;
 }
 
+/* ─── Accessibility primitives ──────────────────────────────── */
+
+/* Skip link — visually hidden until focused, then pinned top-left. */
+.nks-skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    z-index: 2000;
+    padding: 0.5rem 1rem;
+    background: var(--nks-surface);
+    color: var(--nks-accent);
+    border: 1px solid var(--nks-accent);
+    border-radius: 0 0 6px 0;
+    text-decoration: none;
+}
+
+.nks-skip-link:focus { left: 0; }
+
+/* Baseline focus ring for the custom .nks-* controls and anything that would
+   otherwise render none. Bootstrap styles its own components. */
+:focus-visible {
+    outline: 2px solid var(--nks-accent);
+    outline-offset: 2px;
+}
+
+#main-content:focus { outline: none; }
+
 /* ─── Navbar ────────────────────────────────────────────────── */
 
 .nks-navbar {
@@ -74,6 +101,17 @@ body {
 
 .nks-status-badge.nks-status-ok    { background-color: rgba(63, 185, 80, 0.2);  color: var(--nks-info); }
 .nks-status-badge.nks-status-error { background-color: rgba(248, 81, 73, 0.2);  color: var(--nks-high); }
+/* Backend waking from cold start — distinct from both healthy and down. */
+.nks-status-badge.nks-status-wake  { background-color: rgba(210, 153, 34, 0.2); color: var(--nks-medium); }
+
+@media (prefers-reduced-motion: no-preference) {
+    .nks-status-badge.nks-status-wake { animation: nks-pulse 1.6s ease-in-out infinite; }
+}
+
+@keyframes nks-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.55; }
+}
 
 /* ─── Hero ──────────────────────────────────────────────────── */
 
@@ -147,6 +185,14 @@ body {
     background-color: rgba(88, 166, 255, 0.05);
 }
 
+/* The file input is visually-hidden but focusable, so surface its focus state
+   on the zone that visually represents it. */
+.nks-upload-zone:focus-within {
+    border-color: var(--nks-accent);
+    outline: 2px solid var(--nks-accent);
+    outline-offset: 3px;
+}
+
 /* ─── Warning banner ────────────────────────────────────────── */
 
 .nks-alert-banner {
@@ -169,8 +215,29 @@ body {
 .nks-alert-item {
     padding: 0.75rem 1rem;
     border-bottom: 1px solid var(--nks-border);
-    cursor: pointer;
     transition: background-color 0.12s;
+}
+
+/* The alert summary is a real <button> so the disclosure is keyboard operable.
+   Reset it to render exactly like the plain container it replaced. */
+.nks-alert-summary {
+    background: none;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+/* Static rows (nothing to expand) render the same markup as a <span>. */
+.nks-alert-summary:not([aria-expanded]) { cursor: default; }
+
+.nks-alert-summary:focus-visible {
+    outline: 2px solid var(--nks-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
 }
 
 .nks-alert-item:last-child { border-bottom: none; }
@@ -187,6 +254,87 @@ body {
 }
 
 .nks-alert-item.expanded .nks-alert-details { display: block; }
+
+/* ─── Sortable table headers ────────────────────────────────── */
+
+/* A real <button> inside the <th> so sorting is keyboard operable; reset to
+   look like the plain header text it replaced. */
+.nks-sort-btn {
+    background: none;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.nks-sort-btn:hover { color: var(--nks-accent); }
+
+.nks-sort-btn:focus-visible {
+    outline: 2px solid var(--nks-accent);
+    outline-offset: 2px;
+    border-radius: 3px;
+}
+
+.nks-sort-ind {
+    font-size: 0.6em;
+    color: var(--nks-accent);
+    min-width: 0.6em;
+}
+
+/* IPv6 group disclosure inside the hosts table */
+.nks-ipv6-toggle {
+    background: none;
+    border: 0;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.nks-ipv6-toggle:hover { color: var(--nks-accent); }
+
+.nks-ipv6-toggle:focus-visible {
+    outline: 2px solid var(--nks-accent);
+    outline-offset: 2px;
+    border-radius: 3px;
+}
+
+/* ─── "Show more" alerts control ────────────────────────────── */
+
+.nks-show-more-wrap {
+    padding: 0.75rem 1rem;
+    text-align: center;
+    border-top: 1px solid var(--nks-border);
+}
+
+.nks-show-more {
+    background: none;
+    border: 1px solid var(--nks-border);
+    border-radius: 6px;
+    padding: 0.35rem 0.9rem;
+    color: var(--nks-text);
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+}
+
+.nks-show-more:hover {
+    border-color: var(--nks-accent);
+    color: var(--nks-accent);
+}
+
+.nks-show-more:focus-visible {
+    outline: 2px solid var(--nks-accent);
+    outline-offset: 2px;
+}
 
 /* Alert search input */
 .nks-alert-search {
@@ -413,6 +561,9 @@ body {
     transition: transform 0.18s;
 }
 .nks-alert-item.expanded::after { transform: rotate(90deg); }
+
+/* Rows with no details panel: no chevron, since nothing expands. */
+.nks-alert-item.nks-no-details::after { content: none; }
 
 /* Timestamp strip */
 .nks-alert-time {
@@ -750,6 +901,7 @@ body {
 }
 .nks-see-also-pill {
     padding: 0.1rem 0.4rem;
+    border: 0;
     border-radius: 3px;
     font-size: 0.7rem;
     font-weight: 600;
@@ -757,6 +909,10 @@ body {
     transition: opacity 0.15s;
 }
 .nks-see-also-pill:hover { opacity: 0.75; }
+.nks-see-also-pill:focus-visible {
+    outline: 2px solid var(--nks-accent);
+    outline-offset: 2px;
+}
 
 /* ─── Remediation section ────────────────────────────────────────────────── */
 
@@ -810,11 +966,21 @@ body {
 .nks-stats-sep { margin: 0 0.6rem; opacity: 0.4; }
 
 @media print {
-    .nks-navbar, #alert-filter-bar, #severity-badges, .col-lg-4, button { display: none !important; }
+    /* Controls are hidden, but NOT the buttons that carry content: the alert
+       summary holds the severity, message and timestamp, and the table header
+       buttons hold the column names. Hiding all buttons would blank the report. */
+    .nks-navbar, #alert-filter-bar, #severity-badges, .col-lg-4,
+    button:not(.nks-alert-summary):not(.nks-sort-btn):not(.nks-ipv6-toggle) { display: none !important; }
     body { background: #fff !important; color: #000 !important; font-size: 11pt; }
     .nks-card { border: 1px solid #ccc !important; background: #fff !important; break-inside: avoid; }
     .nks-alert-item .nks-alert-details { display: block !important; }
     .nks-alert-item::after { display: none; }
     #alerts-container { max-height: none !important; overflow: visible !important; }
     .col-lg-8 { width: 100% !important; max-width: 100% !important; flex: 0 0 100% !important; }
+
+    /* Render the content-bearing buttons as plain text. */
+    .nks-alert-summary { display: flex !important; color: #000 !important; }
+    .nks-sort-btn, .nks-ipv6-toggle { display: inline !important; color: #000 !important; }
+    .nks-sort-ind, .nks-show-more-wrap { display: none !important; }
+    .nks-skip-link { display: none !important; }
 }
