@@ -12,24 +12,53 @@
 
 const path = require('path');
 
-let JSDOM;
+let JSDOM, ResourceLoader;
 try {
-    ({ JSDOM } = require('jsdom'));
+    ({ JSDOM, ResourceLoader } = require('jsdom'));
 } catch {
     console.error('jsdom is not installed. Run: npm ci   (or npm install)');
     console.error('The browser suite still works without it — open tests/index.html.');
     process.exit(1);
 }
 
+const fs = require('fs');
+const REPO = path.join(__dirname, '..');
 const PAGE = path.join(__dirname, 'index.html');
 
-// No `url` override: fromFile gives the document a file:// URL, so the page's
-// relative <script src> paths resolve against the repo on disk. Setting an
-// http:// url makes jsdom try to fetch them over the network instead.
+// The document needs a real http origin, because jsdom refuses localStorage on
+// the opaque origin a file:// URL produces — and the triage and theme features
+// under test are built on localStorage. But an http origin also makes the
+// default loader try to fetch the page's relative scripts over the network.
+// This loader closes that gap: it serves same-origin requests from the repo.
+class RepoLoader extends ResourceLoader {
+    fetch(url, options) {
+        if (url.startsWith(ORIGIN)) {
+            const rel = decodeURIComponent(url.slice(ORIGIN.length).split('?')[0]);
+            const file = path.join(REPO, rel);
+            // Refuse anything resolving outside the repo.
+            if (!path.resolve(file).startsWith(path.resolve(REPO))) {
+                return Promise.reject(new Error('refused path outside repo: ' + rel));
+            }
+            return fs.promises.readFile(file);
+        }
+        // Anything else (a CDN, the live API) is not this suite's business.
+        return super.fetch(url, options);
+    }
+}
+
+const ORIGIN = 'http://localhost/';
+
 JSDOM.fromFile(PAGE, {
     runScripts: 'dangerously',   // the page's own scripts are the thing under test
-    resources: 'usable',         // so ../js/app.js and tests.js actually load
+    resources: new RepoLoader(),
     pretendToBeVisual: true,     // provides requestAnimationFrame
+    url: ORIGIN + 'tests/index.html',
+    beforeParse(window) {
+        // jsdom implements no layout, so these DOM methods are absent. The app
+        // legitimately calls them; stub them rather than weakening the app.
+        window.Element.prototype.scrollIntoView = function () {};
+        window.HTMLElement.prototype.focus = window.HTMLElement.prototype.focus || function () {};
+    },
 })
     .then((dom) => new Promise((resolve) => {
         // Scripts load asynchronously; wait for the suite to publish its results.

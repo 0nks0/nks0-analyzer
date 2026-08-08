@@ -1,6 +1,10 @@
 /* NKS0 PCAP Analyzer — GitHub Pages static frontend */
 
-:root {
+/* Dark is the default: this is a SOC tool and dark is what the theme was built
+   around. Light exists because reports get screenshotted into documents and
+   read on projectors, where dark inverts badly. */
+:root,
+[data-bs-theme="dark"] {
     --nks-bg:           #0d1117;
     --nks-surface:      #161b22;
     --nks-border:       #30363d;
@@ -11,6 +15,26 @@
     --nks-medium:       #d29922;
     --nks-low:          #58a6ff;
     --nks-info:         #3fb950;
+    --nks-hover:        rgba(255, 255, 255, 0.03);
+    --nks-sunken:       rgba(0, 0, 0, 0.2);
+}
+
+/* Light tokens are not inverted darks — the accent and severity hues are
+   darkened so they clear 4.5:1 against a white surface, which the dark-mode
+   values do not. */
+[data-bs-theme="light"] {
+    --nks-bg:           #ffffff;
+    --nks-surface:      #f6f8fa;
+    --nks-border:       #d0d7de;
+    --nks-text:         #1f2328;
+    --nks-text-muted:   #59636e;
+    --nks-accent:       #0969da;
+    --nks-high:         #d1242f;
+    --nks-medium:       #9a6700;
+    --nks-low:          #0969da;
+    --nks-info:         #1a7f37;
+    --nks-hover:        rgba(0, 0, 0, 0.04);
+    --nks-sunken:       rgba(0, 0, 0, 0.04);
 }
 
 /* ─── Base ─────────────────────────────────────────────────── */
@@ -242,18 +266,127 @@ body {
 
 .nks-alert-item:last-child { border-bottom: none; }
 
-.nks-alert-item:hover { background-color: rgba(255, 255, 255, 0.03); }
+.nks-alert-item:hover { background-color: var(--nks-hover); }
 
 .nks-alert-item .nks-alert-details {
     display: none;
     margin-top: 0.5rem;
     padding: 0.5rem 0.75rem;
-    background-color: rgba(0, 0, 0, 0.2);
+    background-color: var(--nks-sunken);
     border-radius: 6px;
     font-size: 0.8rem;
 }
 
 .nks-alert-item.expanded .nks-alert-details { display: block; }
+
+/* ─── ATT&CK tactic filter pills ────────────────────────────── */
+
+.nks-filter-group-label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--nks-text-muted);
+    margin-right: 0.15rem;
+}
+
+.nks-tactic-pill {
+    background: none;
+    border: 1px dashed var(--nks-border);
+    border-radius: 999px;
+    padding: 0.05rem 0.5rem;
+    font-size: 0.7rem;
+    color: var(--nks-text-muted);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+}
+
+.nks-tactic-pill.active {
+    border-style: solid;
+    border-color: var(--nks-accent);
+    color: var(--nks-accent);
+    background-color: var(--nks-hover);
+}
+
+.nks-tactic-pill:hover { color: var(--nks-text); }
+
+.nks-tactic-pill:focus-visible {
+    outline: 2px solid var(--nks-accent);
+    outline-offset: 2px;
+}
+
+/* ─── Triage ────────────────────────────────────────────────── */
+
+.nks-triage-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    align-items: center;
+}
+
+.nks-triage-toggle,
+.nks-triage-clear {
+    background: none;
+    border: 1px solid var(--nks-border);
+    border-radius: 4px;
+    padding: 0.1rem 0.45rem;
+    font-size: 0.72rem;
+    color: var(--nks-text-muted);
+    cursor: pointer;
+}
+
+.nks-triage-toggle:hover,
+.nks-triage-clear:hover { color: var(--nks-accent); border-color: var(--nks-accent); }
+
+.nks-triage-toggle.muted { opacity: 0.55; }
+
+.nks-triage-toggle:focus-visible,
+.nks-triage-clear:focus-visible {
+    outline: 2px solid var(--nks-accent);
+    outline-offset: 2px;
+}
+
+.nks-triage-note {
+    font-size: 0.68rem;
+    color: var(--nks-text-muted);
+    opacity: 0.8;
+}
+
+/* Per-alert mark buttons, siblings of the summary button (never inside it). */
+.nks-mark-btn {
+    background: none;
+    border: 0;
+    padding: 0 4px;
+    line-height: 1;
+    color: var(--nks-text-muted);
+    opacity: 0.5;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.nks-mark-btn:hover  { opacity: 1; color: var(--nks-accent); }
+.nks-mark-btn.active { opacity: 1; color: var(--nks-accent); }
+
+.nks-mark-btn:focus-visible {
+    outline: 2px solid var(--nks-accent);
+    outline-offset: 2px;
+    border-radius: 3px;
+}
+
+/* A marked alert stays readable but visibly settled. Opacity alone would carry
+   the meaning by appearance only, so the mark button also shows a filled state. */
+.nks-alert-item.nks-marked { opacity: 0.55; }
+.nks-alert-item.nks-marked-fp { border-left-color: var(--nks-border) !important; }
+
+/* Deep-link arrival highlight */
+@media (prefers-reduced-motion: no-preference) {
+    .nks-alert-flash { animation: nks-flash 1.6s ease-out; }
+}
+
+@keyframes nks-flash {
+    0%   { background-color: rgba(88, 166, 255, 0.22); }
+    100% { background-color: transparent; }
+}
 
 /* ─── Sortable table headers ────────────────────────────────── */
 
@@ -399,7 +532,7 @@ body {
     border-radius: 4px;
     font-size: 0.68rem;
     font-weight: 600;
-    background-color: rgba(255, 255, 255, 0.08);
+    background-color: var(--nks-hover);
     color: var(--nks-text-muted);
     margin-left: 0.4rem;
 }
@@ -528,7 +661,7 @@ body {
     transition: background 0.15s, color 0.15s, border-color 0.15s;
     white-space: nowrap;
 }
-.nks-sev-tab:hover { background: rgba(255,255,255,0.06); color: var(--nks-text); }
+.nks-sev-tab:hover { background: var(--nks-hover); color: var(--nks-text); }
 .nks-sev-tab.active { border-color: transparent; color: #fff; }
 .nks-sev-tab.active.nks-sev-critical { background: #da3633; }
 .nks-sev-tab.active.nks-sev-high     { background: var(--nks-high); }
@@ -615,7 +748,7 @@ body {
     font-size: 0.68rem;
     padding: 0.05rem 0.35rem;
     border-radius: 10px;
-    background-color: rgba(255,255,255,0.07);
+    background-color: var(--nks-hover);
     color: var(--nks-text-muted);
     white-space: nowrap;
 }
@@ -688,7 +821,7 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    background-color: rgba(255,255,255,0.04);
+    background-color: var(--nks-hover);
     border: 1px solid var(--nks-border);
     border-radius: 6px;
     padding: 0.3rem 0.65rem;
@@ -751,7 +884,7 @@ body {
 }
 .nks-cred-table td {
     padding: 0.25rem 0.5rem 0.25rem 0;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
+    border-bottom: 1px solid var(--nks-hover);
     vertical-align: middle;
 }
 .nks-cred-table tr:last-child td { border-bottom: none; }
@@ -807,7 +940,7 @@ body {
     padding: 0.2rem 0;
     font-family: 'SFMono-Regular', Consolas, monospace;
     font-size: 0.78rem;
-    border-bottom: 1px solid rgba(255,255,255,0.04);
+    border-bottom: 1px solid var(--nks-hover);
 }
 .nks-domain-row:last-child { border-bottom: none; }
 .nks-domain-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--nks-text); }
@@ -815,10 +948,10 @@ body {
 
 /* ─── Rich renderer: exfil destination bars ─────────────────────────────── */
 
-.nks-dest-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.2rem 0; font-size: 0.78rem; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.nks-dest-row { display: flex; align-items: center; gap: 0.5rem; padding: 0.2rem 0; font-size: 0.78rem; border-bottom: 1px solid var(--nks-hover); }
 .nks-dest-row:last-child { border-bottom: none; }
 .nks-dest-ip { font-family: 'SFMono-Regular', Consolas, monospace; min-width: 110px; color: var(--nks-text); }
-.nks-dest-bar-wrap { flex: 1; height: 4px; background-color: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+.nks-dest-bar-wrap { flex: 1; height: 4px; background-color: var(--nks-hover); border-radius: 2px; overflow: hidden; }
 .nks-dest-bar { height: 100%; background-color: var(--nks-high); border-radius: 2px; transition: width 0.4s ease; }
 .nks-dest-bytes { font-size: 0.72rem; color: var(--nks-text-muted); white-space: nowrap; min-width: 55px; text-align: right; }
 
@@ -831,7 +964,7 @@ body {
     border-radius: 4px;
     font-size: 0.75rem;
     font-weight: 600;
-    background-color: rgba(255,255,255,0.05);
+    background-color: var(--nks-hover);
     border: 1px solid var(--nks-border);
     color: var(--nks-text);
 }
@@ -856,7 +989,7 @@ body {
     padding: 0.05rem 0.32rem;
     border-radius: 3px;
     font-size: 0.68rem;
-    background-color: rgba(255,255,255,0.04);
+    background-color: var(--nks-hover);
     color: var(--nks-text-muted);
     border: 1px solid var(--nks-border);
     vertical-align: middle;
@@ -867,7 +1000,7 @@ body {
     padding: 0.06rem 0.38rem;
     border-radius: 3px;
     font-size: 0.68rem;
-    background-color: rgba(255,255,255,0.06);
+    background-color: var(--nks-hover);
     color: var(--nks-text-muted);
     border: 1px solid var(--nks-border);
     font-family: 'SFMono-Regular', Consolas, monospace;
@@ -879,7 +1012,7 @@ body {
 .nks-code {
     font-family: 'SFMono-Regular', Consolas, monospace;
     font-size: 0.85em;
-    background: rgba(255,255,255,0.06);
+    background: var(--nks-hover);
     border: 1px solid var(--nks-border);
     border-radius: 3px;
     padding: 0.05rem 0.3rem;
@@ -895,7 +1028,7 @@ body {
     flex-wrap: wrap;
     margin-top: 0.5rem;
     padding-top: 0.4rem;
-    border-top: 1px solid rgba(255,255,255,0.06);
+    border-top: 1px solid var(--nks-hover);
     font-size: 0.72rem;
     color: var(--nks-text-muted);
 }
@@ -921,7 +1054,7 @@ body {
 /* ─── Timeline ───────────────────────────────────────────────────────────── */
 
 #timeline-panel { transition: opacity 0.2s ease; }
-#timeline-container { border-radius: 4px; background: rgba(255,255,255,0.02); padding: 4px 0; }
+#timeline-container { border-radius: 4px; background: var(--nks-hover); padding: 4px 0; }
 #timeline-svg circle { transition: r 0.15s ease, opacity 0.15s ease; }
 #timeline-svg circle:hover { opacity: 1; }
 

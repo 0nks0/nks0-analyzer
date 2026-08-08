@@ -12,7 +12,7 @@
           integrity="sha384-XGjxtQfXaH2tnPFa9x+ruJTuLE3Aa6LhHSWRr1XeTyhezb4abCG4ccI5AkVDxqC+" crossorigin="anonymous">
     <link href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.css" rel="stylesheet"
           integrity="sha384-b8ANgTJvdlAnWM5YGMpKn7Kodm+1k7NYNG9zdjTCcZcKatzYHwZ0RLdWarbJJVzU" crossorigin="anonymous">
-    <link href="css/style.css?v=1.5.0" rel="stylesheet">
+    <link href="css/style.css?v=1.6.0" rel="stylesheet">
 </head>
 <body>
 
@@ -53,6 +53,14 @@
                     <i class="bi bi-arrow-left"></i> New analysis
                 </a>
                 <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary nks-theme-btn" id="theme-toggle"
+                            title="Toggle light/dark theme" aria-label="Toggle light or dark theme">
+                        <i class="bi bi-moon-stars-fill" id="theme-icon" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-info" id="export-report-btn"
+                            aria-label="Download a self-contained HTML report">
+                        <i class="bi bi-file-earmark-text" aria-hidden="true"></i> Report
+                    </button>
                     <button type="button" class="btn btn-sm btn-outline-secondary" id="export-csv-btn"
                             aria-label="Download alerts as CSV">
                         <i class="bi bi-filetype-csv" aria-hidden="true"></i> CSV
@@ -140,6 +148,8 @@
                                     </button>
                                 </div>
                             </div>
+                            <!-- Triage summary; populated only once something is marked -->
+                            <div id="triage-bar" class="nks-triage-bar d-none mb-2"></div>
                             <div class="d-flex gap-2 flex-wrap align-items-center">
                                 <div id="alert-filter-bar"></div>
                                 <div class="d-flex gap-1 align-items-center ms-auto">
@@ -282,6 +292,6 @@
             integrity="sha384-vsrfeLOOY6KuIYKDlmVH5UiBmgIdB1oEf7p01YgWHuqmOHfZr374+odEv96n9tNC" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js"
             integrity="sha384-u5N8qJeJOO2iqNjIKTdl6KeKsEikMAmCUBPc6sC6uGpgL34aPJ4VgNhuhumedpEk" crossorigin="anonymous"></script>
-    <script src="js/app.js?v=1.5.0"></script>
+    <script src="js/app.js?v=1.6.0"></script>
 </body>
 </html>

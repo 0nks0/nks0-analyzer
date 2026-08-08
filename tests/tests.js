@@ -54,10 +54,11 @@
         }, over || {});
     }
 
-    function renderAlerts(list) {
-        _allAlerts = list;
-        _alertRenderLimit = 150;
-        renderAlertList(list);
+    // Delegates to the real renderAlerts so tests exercise the production path
+    // (which initialises the severity/category/tactic filter sets). Named
+    // differently on purpose: a local `renderAlerts` would shadow the app's.
+    function renderList(list) {
+        renderAlerts(list);
         return document.getElementById('alerts-container');
     }
 
@@ -96,7 +97,7 @@
     });
 
     check('a hostile alert message cannot inject markup', () => {
-        const c = renderAlerts([alert({ message: '<img src=x onerror=alert(1)>' })]);
+        const c = renderList([alert({ message: '<img src=x onerror=alert(1)>' })]);
         if (c.querySelector('img')) return 'injected <img> element was created';
         return c.textContent.indexOf('<img') !== -1 ? true : 'escaped text not present';
     });
@@ -121,18 +122,18 @@
     group('Alert disclosure and ARIA');
 
     check('alerts with details render a real <button> summary', () => {
-        const c = renderAlerts([alert()]);
+        const c = renderList([alert()]);
         const s = c.querySelector('.nks-alert-summary');
         return eq(s && s.tagName, 'BUTTON', 'summary tag');
     });
 
     check('summary starts collapsed with aria-expanded=false', () => {
-        const c = renderAlerts([alert()]);
+        const c = renderList([alert()]);
         return eq(c.querySelector('.nks-alert-summary').getAttribute('aria-expanded'), 'false');
     });
 
     check('aria-controls points at an element that exists', () => {
-        const c = renderAlerts([alert()]);
+        const c = renderList([alert()]);
         const s = c.querySelector('.nks-alert-summary');
         const id = s.getAttribute('aria-controls');
         return c.querySelector('#' + id) ? true : `aria-controls="${id}" resolves to nothing`;
@@ -141,18 +142,18 @@
     check('summary button contains no nested interactive elements', () => {
         // A button must never wrap another control — screen readers cannot
         // reach the inner one and the markup is invalid.
-        const c = renderAlerts([alert()]);
+        const c = renderList([alert()]);
         const n = c.querySelector('.nks-alert-summary').querySelectorAll('button,a,input,select,textarea').length;
         return eq(n, 0, 'nested interactive count');
     });
 
     check('summary button contains no <div> (invalid inside a button)', () => {
-        const c = renderAlerts([alert()]);
+        const c = renderList([alert()]);
         return eq(c.querySelector('.nks-alert-summary').querySelectorAll('div').length, 0, 'div count');
     });
 
     check('setAlertExpanded moves class and aria together', () => {
-        const c = renderAlerts([alert()]);
+        const c = renderList([alert()]);
         const item = c.querySelector('.nks-alert-item');
         const btn  = item.querySelector('.nks-alert-summary');
         setAlertExpanded(item, true);
@@ -164,7 +165,7 @@
     });
 
     check('expandAllAlerts / collapseAllAlerts keep aria in sync', () => {
-        const c = renderAlerts([alert({ id: 'A' }), alert({ id: 'B' }), alert({ id: 'C' })]);
+        const c = renderList([alert({ id: 'A' }), alert({ id: 'B' }), alert({ id: 'C' })]);
         expandAllAlerts();
         const all = [].slice.call(c.querySelectorAll('.nks-alert-summary[aria-expanded]'));
         if (all.some(b => b.getAttribute('aria-expanded') !== 'true')) return 'a button stayed collapsed';
@@ -179,7 +180,7 @@
         // backend ships a rule before the UI catches up. No tags, no see-also,
         // no body → no panel → must not be a focusable control.
         const bare = alert({ category: 'CategoryWithNoFrontendRenderer', tags: [], details: {}, confidence: null });
-        const c = renderAlerts([bare]);
+        const c = renderList([bare]);
         const item = c.querySelector('.nks-alert-item');
         const s = item.querySelector('.nks-alert-summary');
         if (!item.classList.contains('nks-no-details')) return 'missing nks-no-details marker';
@@ -194,22 +195,22 @@
     for (let i = 0; i < 260; i++) many.push(alert({ id: 'R' + i, message: 'alert ' + i }));
 
     check('renders at most one page on first paint', () => {
-        const c = renderAlerts(many);
+        const c = renderList(many);
         return eq(c.querySelectorAll('.nks-alert-item').length, 150, 'rendered rows');
     });
 
     check('offers a "show more" control when rows are hidden', () => {
-        const c = renderAlerts(many);
+        const c = renderList(many);
         return c.querySelector('#alerts-show-more') ? true : 'no show-more control rendered';
     });
 
     check('no "show more" control when everything fits', () => {
-        const c = renderAlerts([alert()]);
+        const c = renderList([alert()]);
         return c.querySelector('#alerts-show-more') ? 'show-more rendered unnecessarily' : true;
     });
 
     check('showMoreAlerts reveals the next page', () => {
-        renderAlerts(many);
+        renderList(many);
         showMoreAlerts();
         const n = document.getElementById('alerts-container').querySelectorAll('.nks-alert-item').length;
         return eq(n, 300 > many.length ? many.length : 300, 'rows after show more');
@@ -218,7 +219,7 @@
     check('_ensureAlertRendered grows the list to reach a far index', () => {
         // See-also links and timeline dots address the full sorted list, so a
         // target beyond the cap must still be reachable.
-        const c = renderAlerts(many);
+        const c = renderList(many);
         if (c.querySelector('[data-idx="240"]')) return 'index 240 should start hidden';
         _ensureAlertRendered(240);
         return document.getElementById('alerts-container').querySelector('[data-idx="240"]')
@@ -226,7 +227,7 @@
     });
 
     check('data-idx values index the full sorted list, not the visible page', () => {
-        const c = renderAlerts(many);
+        const c = renderList(many);
         const last = c.querySelectorAll('.nks-alert-item')[149];
         return eq(last.getAttribute('data-idx'), '149', 'last visible data-idx');
     });
@@ -316,6 +317,256 @@
         _describeChart(c, 'Flows', [['<b>x</b> to y', 1]]);
         const t = document.getElementById('fixture-chart-a11y-table');
         return t.querySelector('b') ? 'raw markup rendered in data table' : true;
+    });
+
+    // ── MITRE tactic filtering ───────────────────────────────────────────────
+    group('ATT&CK tactic filter');
+
+    const tacticAlerts = [
+        alert({ id: 'T1', category: 'PortScan', mitre: { tactic: 'Discovery', techniques: [{ id: 'T1046' }] } }),
+        alert({ id: 'T2', category: 'Beaconing', mitre: { tactic: 'Command and Control', techniques: [{ id: 'T1071' }] } }),
+        alert({ id: 'T3', category: 'SmbLateral', mitre: { tactic: 'Lateral Movement', techniques: [{ id: 'T1021' }] } }),
+        alert({ id: 'T4', category: 'Generic' }),   // no mitre block
+    ];
+
+    check('alertTactic reads the tactic, defaulting to Unmapped', () =>
+        eq(alertTactic(tacticAlerts[0]), 'Discovery') && eq(alertTactic(tacticAlerts[3]), 'Unmapped'));
+
+    check('filtering to one tactic hides the others', () => {
+        renderList(tacticAlerts);
+        _checkedTactics = new Set(['Lateral Movement']);
+        applyFilters();
+        const rows = document.querySelectorAll('#alerts-container .nks-alert-item');
+        if (rows.length !== 1) return `expected 1 row, got ${rows.length}`;
+        return rows[0].textContent.indexOf('SmbLateral') !== -1 ? true : 'wrong alert survived the filter';
+    });
+
+    check('a tactic filter cuts across categories', () => {
+        // Two different categories sharing a tactic must both survive.
+        const shared = [
+            alert({ id: 'S1', category: 'PortScan',  mitre: { tactic: 'Discovery' } }),
+            alert({ id: 'S2', category: 'PingSweep', mitre: { tactic: 'Discovery' } }),
+            alert({ id: 'S3', category: 'Beaconing', mitre: { tactic: 'Command and Control' } }),
+        ];
+        renderList(shared);
+        _checkedTactics = new Set(['Discovery']);
+        applyFilters();
+        return eq(document.querySelectorAll('#alerts-container .nks-alert-item').length, 2, 'rows');
+    });
+
+    check('renderAlerts re-checks every tactic present', () => {
+        renderList(tacticAlerts);
+        return _checkedTactics.has('Discovery') && _checkedTactics.has('Unmapped')
+            ? true : 'tactics were not all re-enabled on a fresh render';
+    });
+
+    // ── Triage ───────────────────────────────────────────────────────────────
+    group('Local triage state');
+
+    function freshTriage() {
+        try { localStorage.removeItem('nks0_triage'); } catch (_) {}
+        _currentAnalysisId = 'test-analysis';
+        _triage = {};
+        _showReviewed = true;
+        _showFp = true;
+    }
+
+    check('marking an alert reviewed records it', () => {
+        freshTriage();
+        renderList([alert({ id: 'A1' })]);
+        setAlertMark('A1', 'reviewed');
+        return eq(alertMark('A1'), 'reviewed');
+    });
+
+    check('marks survive a reload for the same analysis', () => {
+        freshTriage();
+        renderList([alert({ id: 'A1' })]);
+        setAlertMark('A1', 'fp');
+        _triage = {};                       // simulate a page reload
+        loadTriage('test-analysis');
+        return eq(alertMark('A1'), 'fp');
+    });
+
+    check('marks are scoped to one analysis', () => {
+        freshTriage();
+        renderList([alert({ id: 'A1' })]);
+        setAlertMark('A1', 'reviewed');
+        loadTriage('a-different-analysis');
+        return alertMark('A1') === null ? true : 'a mark leaked between analyses';
+    });
+
+    check('hiding false positives removes them from the list', () => {
+        freshTriage();
+        renderList([alert({ id: 'A1' }), alert({ id: 'A2' })]);
+        setAlertMark('A1', 'fp');
+        _showFp = false;
+        applyFilters();
+        return eq(document.querySelectorAll('#alerts-container .nks-alert-item').length, 1, 'visible rows');
+    });
+
+    check('marked alerts are still shown while the toggle is on', () => {
+        freshTriage();
+        renderList([alert({ id: 'A1' }), alert({ id: 'A2' })]);
+        setAlertMark('A1', 'reviewed');
+        applyFilters();
+        return eq(document.querySelectorAll('#alerts-container .nks-alert-item').length, 2, 'visible rows');
+    });
+
+    check('triageCounts reports each mark type', () => {
+        freshTriage();
+        renderList([alert({ id: 'A1' }), alert({ id: 'A2' }), alert({ id: 'A3' })]);
+        setAlertMark('A1', 'reviewed');
+        setAlertMark('A2', 'fp');
+        const c = triageCounts();
+        return eq(c.reviewed, 1, 'reviewed') && eq(c.fp, 1, 'fp');
+    });
+
+    check('clearing removes every mark', () => {
+        freshTriage();
+        renderList([alert({ id: 'A1' }), alert({ id: 'A2' })]);
+        setAlertMark('A1', 'reviewed');
+        setAlertMark('A2', 'fp');
+        clearTriage();
+        const c = triageCounts();
+        return eq(c.reviewed + c.fp, 0, 'remaining marks');
+    });
+
+    check('mark buttons render outside the summary button', () => {
+        // Same invariant as the disclosure work: no interactive nesting.
+        freshTriage();
+        renderList([alert({ id: 'A1' })]);
+        const item = document.querySelector('.nks-alert-item');
+        const inSummary = item.querySelector('.nks-alert-summary').querySelectorAll('.nks-mark-btn').length;
+        const inRow = item.querySelectorAll('.nks-mark-btn').length;
+        if (inSummary !== 0) return 'mark buttons nested inside the summary button';
+        return eq(inRow, 2, 'mark buttons present in the row');
+    });
+
+    // ── Deep links ───────────────────────────────────────────────────────────
+    group('Alert deep links');
+
+    check('a hash naming an alert expands it', () => {
+        renderList([alert({ id: 'D1' }), alert({ id: 'D2' })]);
+        window.location.hash = '#alert-1';
+        const ok = applyAlertHash({ instant: true });
+        // Scoped to .nks-alert-item: see-also pills carry data-idx too, and the
+        // pill pointing at alert N precedes alert N in the document.
+        const item = document.querySelector('.nks-alert-item[data-idx="1"]');
+        window.location.hash = '';
+        if (!ok) return 'applyAlertHash reported failure';
+        if (!item) return 'alert item 1 not found';
+        return item.classList.contains('expanded') ? true : 'target alert was not expanded';
+    });
+
+    check('see-also pills and alert items are told apart by data-idx', () => {
+        // Regression guard for the selector bug above: an unscoped
+        // [data-idx="N"] matched a pill, so see-also navigation expanded nothing.
+        renderList([alert({ id: 'D1' }), alert({ id: 'D2' })]);
+        const first = document.querySelector('[data-idx="1"]');
+        const scoped = document.querySelector('.nks-alert-item[data-idx="1"]');
+        if (!scoped) return 'scoped selector found no alert item';
+        if (first === scoped) return true;   // no pills rendered in this fixture
+        return first.classList.contains('nks-see-also-pill')
+            ? true
+            : 'unexpected element matched the unscoped selector';
+    });
+
+    check('a malformed hash is ignored rather than throwing', () => {
+        renderList([alert({ id: 'D1' })]);
+        window.location.hash = '#alert-not-a-number';
+        const ok = applyAlertHash();
+        window.location.hash = '';
+        return ok === false ? true : 'a malformed hash was treated as a target';
+    });
+
+    check('no hash means no navigation', () => {
+        renderList([alert({ id: 'D1' })]);
+        window.location.hash = '';
+        return applyAlertHash() === false ? true : 'navigated without a hash';
+    });
+
+    // ── Standalone report ────────────────────────────────────────────────────
+    group('Standalone report export');
+
+    const reportData = {
+        id: 'abc123',
+        filename: 'capture.pcapng',
+        summary: {
+            total_packets: 1234,
+            time_range: { duration_seconds: 60 },
+            alert_counts: { Critical: 0, High: 1, Medium: 1, Low: 0, Info: 0 },
+            top_talkers: [{ ip: '10.0.0.1', bytes_sent: 100, bytes_received: 200 }],
+        },
+        alerts: [
+            alert({ id: 'R1', severity: 'High', message: 'Something bad', mitre: { tactic: 'Discovery', techniques: [{ id: 'T1046', name: 'Scanning' }] } }),
+            alert({ id: 'R2', severity: 'Medium', message: 'Something odd' }),
+        ],
+    };
+
+    check('report is a complete standalone HTML document', () => {
+        const html = buildStandaloneReport(reportData);
+        if (html.indexOf('<!DOCTYPE html>') !== 0) return 'missing doctype';
+        return html.indexOf('</html>') !== -1 ? true : 'document not closed';
+    });
+
+    check('report contains no scripts and no external references', () => {
+        // It must open offline, and it renders attacker-influenced capture data,
+        // so nothing in it should be able to execute or phone home.
+        const html = buildStandaloneReport(reportData);
+        if (/<script/i.test(html)) return 'report contains a <script> tag';
+        if (/\shref\s*=\s*["']https?:/i.test(html)) return 'report links to an external stylesheet';
+        if (/\ssrc\s*=\s*["']https?:/i.test(html)) return 'report references an external resource';
+        return true;
+    });
+
+    check('report includes every alert', () => {
+        const html = buildStandaloneReport(reportData);
+        return html.indexOf('Something bad') !== -1 && html.indexOf('Something odd') !== -1
+            ? true : 'an alert is missing from the report';
+    });
+
+    check('report carries the ATT&CK mapping', () => {
+        const html = buildStandaloneReport(reportData);
+        return html.indexOf('T1046') !== -1 ? true : 'technique id missing';
+    });
+
+    check('report escapes hostile capture content', () => {
+        const hostile = JSON.parse(JSON.stringify(reportData));
+        hostile.alerts[0].message = '<img src=x onerror=alert(1)>';
+        hostile.filename = '<script>bad()</script>';
+        const html = buildStandaloneReport(hostile);
+        if (/<img/i.test(html)) return 'raw <img> survived into the report';
+        if (/<script/i.test(html)) return 'raw <script> survived into the report';
+        return true;
+    });
+
+    check('report reflects triage marks', () => {
+        freshTriage();
+        renderList(reportData.alerts);
+        setAlertMark('R1', 'fp');
+        const html = buildStandaloneReport(reportData);
+        return html.indexOf('marked false positive') !== -1 ? true : 'mark not shown in report';
+    });
+
+    // ── Theme ────────────────────────────────────────────────────────────────
+    group('Theme');
+
+    check('applyTheme sets the document attribute', () => {
+        applyTheme('light');
+        const got = document.documentElement.getAttribute('data-bs-theme');
+        applyTheme('dark');
+        return eq(got, 'light');
+    });
+
+    check('toggleTheme flips and persists the choice', () => {
+        applyTheme('dark');
+        toggleTheme();
+        const after = document.documentElement.getAttribute('data-bs-theme');
+        let stored = null;
+        try { stored = localStorage.getItem('nks0_theme'); } catch (_) {}
+        applyTheme('dark');
+        if (after !== 'light') return `expected light after toggle, got ${after}`;
+        return eq(stored, 'light', 'persisted value');
     });
 
     // ── Summary ──────────────────────────────────────────────────────────────

@@ -9,7 +9,7 @@ if (window.self !== window.top) { try { window.top.location = window.self.locati
 // ─── Backend URL ──────────────────────────────────────────────────────────────
 
 const API_BASE = 'https://nks0-api.onrender.com';
-const APP_VERSION = '1.5.0'; // bump this when releasing a new version
+const APP_VERSION = '1.6.0'; // bump this when releasing a new version
 function getApiBase() { return API_BASE; }
 function apiHeaders() { return {}; }
 
@@ -302,6 +302,107 @@ function resetUpload() {
     if (warnEl) warnEl.classList.add('d-none');
 }
 
+// ─── Alert triage state (localStorage) ───────────────────────────────────────
+//
+// There are no accounts here — analysis is anonymous and results expire with
+// the server session — so triage state has nowhere to live server-side. It is
+// kept per-analysis in localStorage, the same place Recent Analyses already
+// uses: enough to work through a noisy capture in one sitting, and honest
+// about being device-local rather than pretending to be an account.
+
+const _TRIAGE_KEY = 'nks0_triage';
+const _TRIAGE_MAX_ANALYSES = 20;   // bound growth; oldest evicted first
+
+// alert_id -> 'reviewed' | 'fp'
+let _triage = {};
+let _showReviewed = true;
+let _showFp = true;
+
+function _triageReadAll() {
+    try {
+        const raw = localStorage.getItem(_TRIAGE_KEY);
+        if (!raw) return {};
+        const obj = JSON.parse(raw);
+        return (obj && typeof obj === 'object' && !Array.isArray(obj)) ? obj : {};
+    } catch (_) { return {}; }
+}
+
+function _triageWriteAll(all) {
+    try { localStorage.setItem(_TRIAGE_KEY, JSON.stringify(all)); } catch (_) {}
+}
+
+function loadTriage(analysisId) {
+    if (!analysisId) { _triage = {}; return; }
+    const all = _triageReadAll();
+    const entry = all[analysisId];
+    _triage = (entry && typeof entry.marks === 'object' && entry.marks) ? entry.marks : {};
+}
+
+function saveTriage(analysisId) {
+    if (!analysisId) return;
+    const all = _triageReadAll();
+    if (Object.keys(_triage).length === 0) {
+        delete all[analysisId];
+    } else {
+        all[analysisId] = { marks: _triage, ts: Date.now() };
+    }
+    // Evict the least recently touched analyses so this cannot grow forever.
+    const ids = Object.keys(all);
+    if (ids.length > _TRIAGE_MAX_ANALYSES) {
+        ids.sort((a, b) => (all[a].ts || 0) - (all[b].ts || 0))
+           .slice(0, ids.length - _TRIAGE_MAX_ANALYSES)
+           .forEach(id => delete all[id]);
+    }
+    _triageWriteAll(all);
+}
+
+function alertMark(alertId) {
+    return _triage[alertId] || null;
+}
+
+function setAlertMark(alertId, mark) {
+    if (!alertId) return;
+    if (mark) _triage[alertId] = mark; else delete _triage[alertId];
+    saveTriage(_currentAnalysisId);
+}
+
+/** Cycle: unmarked -> reviewed -> unmarked (false positive has its own control). */
+function toggleReviewed(alertId) {
+    setAlertMark(alertId, alertMark(alertId) === 'reviewed' ? null : 'reviewed');
+    applyFilters();
+    announce(alertMark(alertId) === 'reviewed' ? 'Marked reviewed' : 'Cleared reviewed');
+}
+
+function toggleFalsePositive(alertId) {
+    setAlertMark(alertId, alertMark(alertId) === 'fp' ? null : 'fp');
+    applyFilters();
+    announce(alertMark(alertId) === 'fp' ? 'Marked false positive' : 'Cleared false positive');
+}
+
+function _alertMatchesTriage(a) {
+    const mark = alertMark(a.id);
+    if (mark === 'reviewed' && !_showReviewed) return false;
+    if (mark === 'fp' && !_showFp) return false;
+    return true;
+}
+
+function triageCounts() {
+    let reviewed = 0, fp = 0;
+    _allAlerts.forEach(a => {
+        const m = alertMark(a.id);
+        if (m === 'reviewed') reviewed++;
+        else if (m === 'fp') fp++;
+    });
+    return { reviewed, fp };
+}
+
+function clearTriage() {
+    _triage = {};
+    saveTriage(_currentAnalysisId);
+    applyFilters();
+    announce('Cleared all triage marks for this analysis');
+}
+
 // ─── Recent Analyses (localStorage) ──────────────────────────────────────────
 
 const _RECENT_KEY  = 'nks0_recent_analyses';
@@ -382,6 +483,7 @@ const _credStore   = new Map(); // sensitive plaintext — kept in JS memory, no
 let _credUidSeq    = 0;         // monotonic counter — ensures globally unique cred IDs per render
 let _checkedSev    = new Set();
 let _checkedCats   = new Set();
+let _checkedTactics = new Set();   // MITRE ATT&CK tactics, see alertTactic()
 let _ipSearchQuery = '';
 let _activeSevTab  = 'All';
 let _sevCounts     = {};
@@ -390,6 +492,56 @@ let _geoInfo       = {};
 let _osGuesses     = {};
 let _ipSearchTimer = null;
 let _currentAnalysisId = null;
+
+// ─── Theme ───────────────────────────────────────────────────────────────────
+
+const _THEME_KEY = 'nks0_theme';
+
+function _readTheme() {
+    try {
+        const saved = localStorage.getItem(_THEME_KEY);
+        if (saved === 'light' || saved === 'dark') return saved;
+    } catch (_) { /* storage may be unavailable */ }
+    // No stored choice: follow the OS, defaulting to dark for this tool.
+    try {
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) return 'light';
+    } catch (_) { /* matchMedia unavailable */ }
+    return 'dark';
+}
+
+function applyTheme(theme) {
+    document.documentElement.setAttribute('data-bs-theme', theme);
+    const icon = document.getElementById('theme-icon');
+    if (icon) icon.className = theme === 'light' ? 'bi bi-sun-fill' : 'bi bi-moon-stars-fill';
+    const btn = document.getElementById('theme-toggle');
+    if (btn) {
+        const next = theme === 'light' ? 'dark' : 'light';
+        btn.setAttribute('aria-label', `Switch to ${next} theme`);
+        btn.setAttribute('title', `Switch to ${next} theme`);
+    }
+}
+
+function toggleTheme() {
+    const next = document.documentElement.getAttribute('data-bs-theme') === 'light' ? 'dark' : 'light';
+    try { localStorage.setItem(_THEME_KEY, next); } catch (_) { /* non-fatal */ }
+    applyTheme(next);
+    announce(`Switched to ${next} theme`);
+    // Chart.js bakes axis/grid colours in at construction, so redraw them.
+    if (_rawData) {
+        const s = _rawData.summary || {};
+        if (typeof renderProtocolChart === 'function' && s.protocol_bytes) renderProtocolChart(s.protocol_bytes);
+        if (typeof renderSeverityChart === 'function' && s.alert_counts) renderSeverityChart(s.alert_counts);
+    }
+    if (_lastNetworkGraphArgs && typeof renderNetworkGraph === 'function') {
+        renderNetworkGraph.apply(null, _lastNetworkGraphArgs);
+    }
+}
+
+function initTheme() {
+    applyTheme(_readTheme());
+    const btn = document.getElementById('theme-toggle');
+    if (btn) btn.addEventListener('click', toggleTheme);
+}
 
 // ─── Screen-reader announcements ─────────────────────────────────────────────
 
@@ -437,6 +589,9 @@ function loadResults(analysisId) {
                 contentEl.classList.remove('d-none');
                 contentEl.setAttribute('aria-busy', 'false');
             }
+            // Triage marks are per-analysis and device-local; load before the
+            // first render so marked alerts paint correctly the first time.
+            loadTriage(analysisId);
             renderResults(data);
             if (data.is_guest) showGuestBanner(data.expires_at);
             // The loading → results swap is silent for screen readers; say what landed.
@@ -444,6 +599,8 @@ function loadResults(analysisId) {
             const total  = Object.values(counts).reduce((a, b) => a + b, 0);
             announce(`Analysis of ${data.filename || 'capture'} loaded. `
                    + `${total} alert${total !== 1 ? 's' : ''} found.`);
+            // Honour a deep link once the list exists.
+            applyAlertHash({ instant: true });
         })
         .catch(err => {
             if (loadingEl) loadingEl.classList.add('d-none');
@@ -538,9 +695,20 @@ function renderAlerts(alerts) {
     _activeSevTab = 'All';
     _checkedSev  = new Set(alerts.map(a => a.severity || 'Info'));
     _checkedCats = new Set(alerts.map(a => a.category || 'Generic'));
+    _checkedTactics = new Set(alerts.map(alertTactic));
     renderFilterBar(alerts);
     renderTimeline(alerts);
     applyFilters();
+}
+
+// The backend maps rules to ATT&CK tactics, but the mapping was display-only.
+// Treating it as a filter dimension turns it into navigation: "show me
+// everything that looks like lateral movement" is the question a defender
+// actually asks, and it cuts across detection categories.
+const UNMAPPED_TACTIC = 'Unmapped';
+
+function alertTactic(a) {
+    return (a && a.mitre && a.mitre.tactic) ? a.mitre.tactic : UNMAPPED_TACTIC;
 }
 
 function renderFilterBar(alerts) {
@@ -548,29 +716,65 @@ function renderFilterBar(alerts) {
     if (!bar) return;
 
     const catCounts = {};
+    const tacCounts = {};
     _allAlerts.forEach(a => {
         const cat = a.category || 'Generic';
         catCounts[cat] = (catCounts[cat] || 0) + 1;
+        const tac = alertTactic(a);
+        tacCounts[tac] = (tacCounts[tac] || 0) + 1;
     });
 
     if (!Object.keys(catCounts).length) { bar.innerHTML = ''; return; }
 
-    const pills = Object.entries(catCounts)
+    const catPills = Object.entries(catCounts)
         .sort((a, b) => b[1] - a[1])
         .map(([cat, n]) => {
             const active = _checkedCats.has(cat) ? ' active' : '';
-            return `<button class="nks-cat-pill${active}" data-cat="${escapeHtml(cat)}">${escapeHtml(cat)}<span class="nks-pill-count">${n}</span></button>`;
+            return `<button type="button" class="nks-cat-pill${active}" data-cat="${escapeHtml(cat)}"
+                aria-pressed="${_checkedCats.has(cat)}">${escapeHtml(cat)}<span class="nks-pill-count">${n}</span></button>`;
         }).join('');
 
-    bar.innerHTML = `<div class="d-flex flex-wrap gap-1 align-items-center">${pills}<span class="nks-filter-count ms-2" id="filter-count"></span></div>`;
+    // Only worth showing when the capture actually spans more than one tactic.
+    const tacKeys = Object.keys(tacCounts).filter(t => t !== UNMAPPED_TACTIC);
+    const tacPills = tacKeys.length > 1
+        ? Object.entries(tacCounts)
+            .sort((a, b) => b[1] - a[1])
+            .map(([tac, n]) => {
+                const active = _checkedTactics.has(tac) ? ' active' : '';
+                return `<button type="button" class="nks-tactic-pill${active}" data-tactic="${escapeHtml(tac)}"
+                    aria-pressed="${_checkedTactics.has(tac)}">${escapeHtml(tac)}<span class="nks-pill-count">${n}</span></button>`;
+            }).join('')
+        : '';
+
+    bar.innerHTML =
+        `<div class="d-flex flex-wrap gap-1 align-items-center">${catPills}` +
+        `<span class="nks-filter-count ms-2" id="filter-count"></span></div>` +
+        (tacPills
+            ? `<div class="d-flex flex-wrap gap-1 align-items-center mt-1">
+                 <span class="nks-filter-group-label">ATT&amp;CK</span>${tacPills}
+               </div>`
+            : '');
 }
 
 function toggleSev(sev, on) { on ? _checkedSev.add(sev) : _checkedSev.delete(sev); applyFilters(); }
 function toggleCat(cat, on) { on ? _checkedCats.add(cat) : _checkedCats.delete(cat); updateFilterPills(); applyFilters(); }
 
+function toggleTactic(tac, on) {
+    on ? _checkedTactics.add(tac) : _checkedTactics.delete(tac);
+    updateFilterPills();
+    applyFilters();
+}
+
 function updateFilterPills() {
     document.querySelectorAll('#alert-filter-bar .nks-cat-pill').forEach(btn => {
-        btn.classList.toggle('active', _checkedCats.has(btn.dataset.cat));
+        const on = _checkedCats.has(btn.dataset.cat);
+        btn.classList.toggle('active', on);
+        btn.setAttribute('aria-pressed', String(on));
+    });
+    document.querySelectorAll('#alert-filter-bar .nks-tactic-pill').forEach(btn => {
+        const on = _checkedTactics.has(btn.dataset.tactic);
+        btn.classList.toggle('active', on);
+        btn.setAttribute('aria-pressed', String(on));
     });
 }
 
@@ -632,7 +836,11 @@ function applyFilters() {
     const filtered = _allAlerts.filter(a => {
         const sev = a.severity || 'Info';
         const cat = a.category || 'Generic';
-        return _checkedSev.has(sev) && _checkedCats.has(cat) && _alertMatchesIpSearch(a);
+        return _checkedSev.has(sev)
+            && _checkedCats.has(cat)
+            && _checkedTactics.has(alertTactic(a))
+            && _alertMatchesTriage(a)
+            && _alertMatchesIpSearch(a);
     });
 
     const countEl = document.getElementById('filter-count');
@@ -657,6 +865,8 @@ function applyFilters() {
         footer.classList.remove('d-none');
     }
 
+    renderTriageBar();
+
     // Filtering/searching only changes the list visually — announce the new
     // count so it isn't a silent change for screen-reader users.
     if (_filtersInitialised) {
@@ -665,6 +875,35 @@ function applyFilters() {
             : `Showing ${filtered.length} of ${_allAlerts.length} alerts`);
     }
     _filtersInitialised = true;
+}
+
+// Triage summary + show/hide toggles. Hidden entirely until something has been
+// marked, so it costs nothing on a capture nobody has triaged yet.
+function renderTriageBar() {
+    const bar = document.getElementById('triage-bar');
+    if (!bar) return;
+    const { reviewed, fp } = triageCounts();
+
+    if (!reviewed && !fp) { bar.innerHTML = ''; bar.classList.add('d-none'); return; }
+    bar.classList.remove('d-none');
+
+    const parts = [];
+    if (reviewed) {
+        parts.push(`<button type="button" class="nks-triage-toggle${_showReviewed ? '' : ' muted'}"
+            id="toggle-reviewed" aria-pressed="${_showReviewed}">
+            <i class="bi bi-check2-circle" aria-hidden="true"></i>
+            ${reviewed} reviewed (${_showReviewed ? 'shown' : 'hidden'})</button>`);
+    }
+    if (fp) {
+        parts.push(`<button type="button" class="nks-triage-toggle${_showFp ? '' : ' muted'}"
+            id="toggle-fp" aria-pressed="${_showFp}">
+            <i class="bi bi-slash-circle" aria-hidden="true"></i>
+            ${fp} false positive${fp !== 1 ? 's' : ''} (${_showFp ? 'shown' : 'hidden'})</button>`);
+    }
+    parts.push(`<button type="button" class="nks-triage-clear" id="clear-triage">Clear marks</button>`);
+    parts.push(`<span class="nks-triage-note">Saved on this device only</span>`);
+
+    bar.innerHTML = parts.join('');
 }
 
 // ─── Alert list renderer ──────────────────────────────────────────────────────
@@ -754,9 +993,34 @@ function renderAlertList(alerts) {
                     aria-expanded="false" aria-controls="${detailsId}">${summaryInner}</button>`
             : `<span class="nks-alert-summary d-flex align-items-start gap-2 w-100">${summaryInner}</span>`;
 
-        return `<div class="nks-alert-item${detailsHtml ? '' : ' nks-no-details'}" data-idx="${idx}" data-sev="${escapeHtml(alert.severity)}">
+        // Triage controls sit outside the summary button — a button must never
+        // contain other interactive controls.
+        const mark = alertMark(alert.id);
+        const aid = escapeHtml(String(alert.id || ''));
+        const triageHtml = alert.id
+            ? `<button type="button" class="nks-mark-btn${mark === 'reviewed' ? ' active' : ''}"
+                    data-mark="reviewed" data-alert-id="${aid}"
+                    aria-pressed="${mark === 'reviewed'}"
+                    title="${mark === 'reviewed' ? 'Clear reviewed' : 'Mark reviewed'}"
+                    aria-label="${mark === 'reviewed' ? 'Clear reviewed' : 'Mark reviewed'}">
+                    <i class="bi bi-check2-circle" aria-hidden="true"></i>
+               </button>
+               <button type="button" class="nks-mark-btn${mark === 'fp' ? ' active' : ''}"
+                    data-mark="fp" data-alert-id="${aid}"
+                    aria-pressed="${mark === 'fp'}"
+                    title="${mark === 'fp' ? 'Clear false positive' : 'Mark false positive'}"
+                    aria-label="${mark === 'fp' ? 'Clear false positive' : 'Mark false positive'}">
+                    <i class="bi bi-slash-circle" aria-hidden="true"></i>
+               </button>`
+            : '';
+
+        const markClass = mark ? ` nks-marked nks-marked-${mark}` : '';
+        return `<div class="nks-alert-item${detailsHtml ? '' : ' nks-no-details'}${markClass}"
+                     id="alert-${idx}" data-idx="${idx}" data-alert-id="${aid}"
+                     data-sev="${escapeHtml(alert.severity)}">
             <div class="d-flex align-items-start gap-2" style="padding-right:1.4rem">
                 ${summaryHtml}
+                ${triageHtml}
             </div>
             ${detailsHtml}
         </div>`;
@@ -810,17 +1074,55 @@ function _renderSeeAlso(alert, alertIdx, seeAlsoMap) {
     return `<div class="nks-see-also"><i class="bi bi-link-45deg"></i> Same host: ${pills}</div>`;
 }
 
-function scrollToAlert(idx) {
+function scrollToAlert(idx, opts) {
     // The target may sit past the render cap (see-also links and timeline dots
     // address the full sorted list) — grow the list first if so.
     _ensureAlertRendered(idx);
-    const el = document.querySelector(`[data-idx="${idx}"]`);
-    if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        setAlertExpanded(el, true);
-        // Move focus with the scroll so keyboard users follow the jump.
-        const btn = el.querySelector('.nks-alert-summary[aria-expanded]');
-        if (btn) btn.focus({ preventScroll: true });
+    // Scoped to .nks-alert-item on purpose: see-also pills also carry data-idx,
+    // and a pill for alert N sits earlier in the document than alert N itself,
+    // so an unscoped selector matched the pill and expanded nothing.
+    const el = document.querySelector(`.nks-alert-item[data-idx="${idx}"]`);
+    if (!el) return false;
+    el.scrollIntoView({ behavior: (opts && opts.instant) ? 'auto' : 'smooth', block: 'center' });
+    setAlertExpanded(el, true);
+    // Move focus with the scroll so keyboard users follow the jump.
+    const btn = el.querySelector('.nks-alert-summary[aria-expanded]');
+    if (btn) btn.focus({ preventScroll: true });
+    el.classList.add('nks-alert-flash');
+    setTimeout(() => el.classList.remove('nks-alert-flash'), 1600);
+    return true;
+}
+
+// ─── Deep links ──────────────────────────────────────────────────────────────
+//
+// Findings need to be citable: "look at alert 7 in this capture" should be a
+// URL, not an instruction to scroll. The hash indexes the severity-sorted list
+// that renderAlertList produces, which is deterministic for a given result.
+
+function _alertHashIndex() {
+    const m = /^#alert-(\d+)$/.exec(window.location.hash || '');
+    if (!m) return null;
+    const idx = Number(m[1]);
+    return Number.isInteger(idx) && idx >= 0 ? idx : null;
+}
+
+/** Jump to the alert named in the URL hash, if there is one. */
+function applyAlertHash(opts) {
+    const idx = _alertHashIndex();
+    if (idx === null) return false;
+    const ok = scrollToAlert(idx, opts);
+    if (!ok) announce('The linked alert is not in the current view — check the filters');
+    return ok;
+}
+
+/** Reflect the opened alert in the URL without adding history entries. */
+function _setAlertHash(idx) {
+    const hash = `#alert-${idx}`;
+    if (window.location.hash === hash) return;
+    try {
+        history.replaceState(null, '', window.location.pathname + window.location.search + hash);
+    } catch (_) {
+        // replaceState can throw on some file:// origins; the hash is a nicety.
     }
 }
 
@@ -1828,9 +2130,182 @@ function _remediationHtml(category) {
     </div>`;
 }
 
+// ─── Standalone report ───────────────────────────────────────────────────────
+//
+// Analysis here is anonymous and results expire with the server session, so a
+// finding cannot be kept or handed to anyone — the result URL dies and there is
+// no account behind it. This produces one self-contained HTML file: every style
+// inlined, no scripts, no external requests. It opens offline, on any machine,
+// years later, and can simply be emailed.
+//
+// Deliberately script-free. The content originates in a packet capture, i.e.
+// from an attacker, so the export is fully-rendered escaped markup rather than
+// data re-hydrated by JavaScript. Nothing in the file can execute.
+
+const _REPORT_CSS = `
+:root{--bg:#fff;--fg:#1a1a1a;--muted:#6a737d;--line:#e1e4e8;--card:#fafbfc;
+--crit:#b31412;--high:#d1242f;--med:#9a6700;--low:#0969da;--info:#1a7f37}
+*{box-sizing:border-box}
+body{margin:0;padding:2rem 1.5rem;background:var(--bg);color:var(--fg);
+font:14px/1.55 -apple-system,'Segoe UI',Helvetica,Arial,sans-serif;max-width:1000px;margin:0 auto}
+h1{font-size:1.5rem;margin:0 0 .2rem}h2{font-size:1.05rem;margin:2rem 0 .6rem;
+padding-bottom:.3rem;border-bottom:1px solid var(--line)}
+.sub{color:var(--muted);font-size:.85rem;margin:0 0 1.5rem}
+.grid{display:flex;flex-wrap:wrap;gap:.75rem;margin-bottom:1.5rem}
+.stat{flex:1 1 140px;border:1px solid var(--line);border-radius:6px;padding:.6rem .8rem;background:var(--card)}
+.stat b{display:block;font-size:1.15rem}
+.stat span{color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.06em}
+.sev{display:inline-block;padding:.1rem .45rem;border-radius:3px;font-size:.7rem;
+font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.03em}
+.sev.critical{background:var(--crit)}.sev.high{background:var(--high)}
+.sev.medium{background:var(--med)}.sev.low{background:var(--low)}.sev.info{background:var(--info)}
+.alert{border:1px solid var(--line);border-left-width:4px;border-radius:5px;
+padding:.7rem .9rem;margin-bottom:.7rem;break-inside:avoid}
+.alert.critical{border-left-color:var(--crit)}.alert.high{border-left-color:var(--high)}
+.alert.medium{border-left-color:var(--med)}.alert.low{border-left-color:var(--low)}
+.alert.info{border-left-color:var(--info)}
+.alert.marked{opacity:.6}
+.msg{font-weight:600;margin:.35rem 0}
+.meta{color:var(--muted);font-size:.76rem}
+.kv{margin:.5rem 0 0;font-size:.8rem;border-collapse:collapse;width:100%}
+.kv th{text-align:left;font-weight:600;color:var(--muted);padding:.15rem .6rem .15rem 0;
+white-space:nowrap;vertical-align:top;width:1%}
+.kv td{padding:.15rem 0;word-break:break-word;font-family:'SFMono-Regular',Consolas,monospace}
+.tag{display:inline-block;background:var(--card);border:1px solid var(--line);
+border-radius:3px;padding:0 .35rem;font-size:.7rem;color:var(--muted);margin:.15rem .2rem 0 0}
+table.hosts{width:100%;border-collapse:collapse;font-size:.82rem}
+table.hosts th,table.hosts td{text-align:left;padding:.3rem .5rem;border-bottom:1px solid var(--line)}
+table.hosts th{color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.05em}
+table.hosts td.num{text-align:right;font-family:'SFMono-Regular',Consolas,monospace}
+footer{margin-top:2.5rem;padding-top:.8rem;border-top:1px solid var(--line);
+color:var(--muted);font-size:.75rem}
+@media print{body{padding:0}.alert{break-inside:avoid}}
+`;
+
+function _reportKv(label, value) {
+    if (value === undefined || value === null || value === '') return '';
+    return `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(String(value))}</td></tr>`;
+}
+
+function _reportAlert(a) {
+    const sev = sevClass(a.severity);
+    const d = a.details || {};
+    const mark = alertMark(a.id);
+
+    const rows = [
+        _reportKv('Rule', a.id),
+        _reportKv('Source', d.src_ip || d.ip),
+        _reportKv('Destination', d.dst_ip || d.target_ip),
+        _reportKv('Port', d.dst_port),
+        _reportKv('Confidence', a.confidence != null ? `${(a.confidence * 100).toFixed(0)}%` : ''),
+        _reportKv('First seen', a.first_seen ? formatTs(a.first_seen) : ''),
+        _reportKv('Last seen', a.last_seen ? formatTs(a.last_seen) : ''),
+    ].join('');
+
+    const mitre = (a.mitre && a.mitre.tactic)
+        ? `<tr><th>ATT&amp;CK</th><td>${escapeHtml(a.mitre.tactic)}`
+          + ((a.mitre.techniques || []).length
+              ? ' — ' + a.mitre.techniques.map(t => escapeHtml(t.id + (t.name ? ` (${t.name})` : ''))).join(', ')
+              : '')
+          + '</td></tr>'
+        : '';
+
+    const tags = (a.tags || []).length
+        ? `<div>${a.tags.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>`
+        : '';
+
+    const markNote = mark
+        ? `<span class="tag">${mark === 'fp' ? 'marked false positive' : 'reviewed'}</span>`
+        : '';
+
+    return `<div class="alert ${sev}${mark ? ' marked' : ''}">
+        <span class="sev ${sev}">${escapeHtml(a.severity || 'Info')}</span>
+        <span class="meta">${escapeHtml(a.category || '')}</span> ${markNote}
+        <div class="msg">${escapeHtml(a.message || '')}</div>
+        <table class="kv">${rows}${mitre}</table>
+        ${tags}
+    </div>`;
+}
+
+function buildStandaloneReport(data) {
+    const s = data.summary || {};
+    const tr = s.time_range || {};
+    const counts = s.alert_counts || {};
+    const alerts = (data.alerts || []).slice().sort((x, y) => {
+        const order = { Critical: 0, High: 1, Medium: 2, Low: 3, Info: 4 };
+        return (order[x.severity] ?? 5) - (order[y.severity] ?? 5);
+    });
+
+    const stats = [
+        ['File', data.filename || data.id || '—'],
+        ['Packets', formatNumber(s.total_packets || 0)],
+        ['Duration', formatDuration(tr.duration_seconds || 0)],
+        ['Alerts', String(alerts.length)],
+    ].map(([label, val]) =>
+        `<div class="stat"><b>${escapeHtml(val)}</b><span>${escapeHtml(label)}</span></div>`
+    ).join('');
+
+    const sevLine = ['Critical', 'High', 'Medium', 'Low', 'Info']
+        .filter(k => counts[k])
+        .map(k => `<span class="sev ${sevClass(k)}">${counts[k]} ${escapeHtml(k)}</span>`)
+        .join(' ');
+
+    const hosts = (s.top_talkers || []).map(h => `<tr>
+        <td>${escapeHtml(h.ip)}${h.hostname ? ' <span class="meta">(' + escapeHtml(h.hostname) + ')</span>' : ''}</td>
+        <td>${escapeHtml(h.country_name || h.country || '')}</td>
+        <td class="num">${escapeHtml(formatBytes(h.bytes_sent))}</td>
+        <td class="num">${escapeHtml(formatBytes(h.bytes_received))}</td>
+    </tr>`).join('');
+
+    const generated = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+
+    return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NKS0 report — ${escapeHtml(data.filename || data.id || 'analysis')}</title>
+<style>${_REPORT_CSS}</style></head><body>
+<h1>NKS0 Network Analysis Report</h1>
+<p class="sub">${escapeHtml(data.filename || data.id || '')} · generated ${escapeHtml(generated)}
+ · analyser v${escapeHtml(APP_VERSION)}</p>
+<div class="grid">${stats}</div>
+${sevLine ? `<p>${sevLine}</p>` : ''}
+<h2>Findings (${alerts.length})</h2>
+${alerts.length ? alerts.map(_reportAlert).join('') : '<p class="meta">No alerts were raised for this capture.</p>'}
+${hosts ? `<h2>Top hosts</h2><table class="hosts">
+<thead><tr><th>Host</th><th>Location</th><th style="text-align:right">Sent</th><th style="text-align:right">Received</th></tr></thead>
+<tbody>${hosts}</tbody></table>` : ''}
+<footer>
+Self-contained export from the NKS0 PCAP Analyzer. This is a point-in-time
+snapshot — the source analysis expires with the server session. Triage marks
+shown here were recorded on the exporting device only.
+</footer>
+</body></html>`;
+}
+
+function _downloadBlob(content, mime, filename) {
+    const blob = new Blob([content], { type: mime });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    // Revoke on the next tick — revoking synchronously can cancel the download
+    // in some browsers before it has read the blob.
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+function exportReport(data) {
+    const base = (data.filename || data.id || 'nks0').replace(/\.[^.]+$/, '');
+    _downloadBlob(buildStandaloneReport(data), 'text/html', base + '_report.html');
+    announce('Report downloaded');
+}
+
 // ─── Export ───────────────────────────────────────────────────────────────────
 
 function initExportButtons(data) {
+    const reportBtn = document.getElementById('export-report-btn');
+    if (reportBtn) reportBtn.onclick = () => exportReport(data);
+
     const jsonBtn = document.getElementById('export-json-btn');
     if (jsonBtn) {
         jsonBtn.onclick = () => {
@@ -2501,11 +2976,21 @@ function initResultsDelegation() {
         if (btn) filterBySev(btn.dataset.sev);
     });
 
-    // Category filter pills
+    // Category and ATT&CK tactic filter pills
     const filterBar = document.getElementById('alert-filter-bar');
     if (filterBar) filterBar.addEventListener('click', e => {
-        const btn = e.target.closest('.nks-cat-pill');
-        if (btn) toggleCat(btn.dataset.cat, !_checkedCats.has(btn.dataset.cat));
+        const cat = e.target.closest('.nks-cat-pill');
+        if (cat) { toggleCat(cat.dataset.cat, !_checkedCats.has(cat.dataset.cat)); return; }
+        const tac = e.target.closest('.nks-tactic-pill');
+        if (tac) toggleTactic(tac.dataset.tactic, !_checkedTactics.has(tac.dataset.tactic));
+    });
+
+    // Triage summary bar — show/hide toggles and clear
+    const triageBar = document.getElementById('triage-bar');
+    if (triageBar) triageBar.addEventListener('click', e => {
+        if (e.target.closest('#toggle-reviewed')) { _showReviewed = !_showReviewed; applyFilters(); return; }
+        if (e.target.closest('#toggle-fp'))       { _showFp = !_showFp; applyFilters(); return; }
+        if (e.target.closest('#clear-triage'))    clearTriage();
     });
 
     // Alerts container — expand/collapse, see-also cross-links, reveal buttons
@@ -2525,12 +3010,23 @@ function initResultsDelegation() {
                 scrollToAlert(Number(seeAlso.dataset.idx));
                 return;
             }
+            const markBtn = e.target.closest('.nks-mark-btn');
+            if (markBtn) {
+                e.stopPropagation();
+                const id = markBtn.dataset.alertId;
+                if (markBtn.dataset.mark === 'fp') toggleFalsePositive(id);
+                else toggleReviewed(id);
+                return;
+            }
             // Only the summary button toggles. A native <button> fires click on
             // Enter and Space, so keyboard activation needs no extra handler.
             const summary = e.target.closest('.nks-alert-summary[aria-expanded]');
             if (summary) {
                 const item = summary.closest('.nks-alert-item');
-                setAlertExpanded(item, !item.classList.contains('expanded'));
+                const nowOpen = !item.classList.contains('expanded');
+                setAlertExpanded(item, nowOpen);
+                // Opening an alert makes it citable by URL.
+                if (nowOpen) _setAlertHash(Number(item.dataset.idx));
             }
         });
     }
@@ -2569,6 +3065,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // page bootstrap so tests don't hit the network or touch a real backend.
     if (window.NKS_TEST_MODE) return;
 
+    initTheme();
     initConnectionBar();
     if (document.getElementById('site-stats-bar')) loadSiteStats();
 
