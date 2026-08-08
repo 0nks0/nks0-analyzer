@@ -2,3 +2,8 @@
 Thumbs.db
 *.log
 .claude/
+
+# Dev-only dependency for the headless test runner. The site itself ships
+# exactly as committed and has no build step or runtime dependencies.
+# package-lock.json IS committed, so `npm ci` in CI is reproducible.
+node_modules/

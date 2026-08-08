@@ -1,0 +1,19 @@
+{
+  "name": "nks0-analyzer",
+  "version": "1.5.0",
+  "private": true,
+  "description": "NKS0 PCAP Analyzer — static GitHub Pages frontend. No build step: the site is served exactly as committed.",
+  "scripts": {
+    "test": "node tests/run.js",
+    "check-version": "node tools/bump-version.js",
+    "bump": "node tools/bump-version.js",
+    "verify": "npm run check-version && npm test",
+    "serve": "python -m http.server 7601"
+  },
+  "devDependencies": {
+    "jsdom": "^25.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
