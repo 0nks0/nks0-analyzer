@@ -106,11 +106,18 @@ async function loadSiteStats() {
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
+// Escapes the five characters that can break out of HTML text OR an attribute
+// value. The previous implementation round-tripped through a detached div's
+// textContent/innerHTML, which handles < > & but leaves quotes untouched — and
+// this helper is used in attribute position in several places, so a value
+// containing a double quote could have escaped its attribute. Everything fed
+// here ultimately originates from a packet capture, i.e. from an attacker.
+//
+// Also avoids allocating a DOM node per call, so it works without a document.
+const _HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 function escapeHtml(str) {
     if (str == null) return '';
-    const d = document.createElement('div');
-    d.textContent = String(str);
-    return d.innerHTML;
+    return String(str).replace(/[&<>"']/g, ch => _HTML_ESCAPES[ch]);
 }
 
 function formatBytes(bytes) {

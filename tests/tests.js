@@ -73,16 +73,26 @@
     check('escapeHtml maps null and undefined to empty string', () =>
         eq(escapeHtml(null), '') === true && eq(escapeHtml(undefined), '') === true);
 
-    check('escapeHtml does NOT escape quotes — unsafe in attribute position', () => {
-        // Documents a known limitation rather than asserting desired behaviour:
-        // textContent/innerHTML leaves " and ' intact. Every current call site
-        // puts the result in element content. If one ever moves into an
-        // unquoted/quoted attribute, this test should be flipped and the
-        // helper hardened.
-        const out = escapeHtml('a"b\'c');
-        return out.indexOf('"') !== -1
-            ? true
-            : 'escapeHtml now escapes quotes — tighten this test and drop the caveat';
+    check('escapeHtml escapes double quotes', () =>
+        eq(escapeHtml('say "hi"'), 'say &quot;hi&quot;'));
+
+    check('escapeHtml escapes single quotes', () =>
+        eq(escapeHtml("it's"), 'it&#39;s'));
+
+    check('escapeHtml escapes & before the entities it generates', () =>
+        eq(escapeHtml('&lt;'), '&amp;lt;'));
+
+    check('a value cannot break out of an attribute it is placed in', () => {
+        // escapeHtml is used in attribute position in several render paths.
+        // A value carrying a double quote must not be able to close the
+        // attribute and start a new one.
+        const hostile = '" onmouseover="alert(1)';
+        const html = `<span title="${escapeHtml(hostile)}">x</span>`;
+        const probe = document.createElement('div');
+        probe.innerHTML = html;
+        const el = probe.firstElementChild;
+        if (el.hasAttribute('onmouseover')) return 'value escaped its attribute and injected a handler';
+        return eq(el.getAttribute('title'), hostile, 'round-tripped title');
     });
 
     check('a hostile alert message cannot inject markup', () => {
