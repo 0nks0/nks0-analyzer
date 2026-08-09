@@ -9,7 +9,7 @@ if (window.self !== window.top) { try { window.top.location = window.self.locati
 // ─── Backend URL ──────────────────────────────────────────────────────────────
 
 const API_BASE = 'https://nks0-api.onrender.com';
-const APP_VERSION = '1.6.0'; // bump this when releasing a new version
+const APP_VERSION = '1.7.0'; // bump this when releasing a new version
 function getApiBase() { return API_BASE; }
 function apiHeaders() { return {}; }
 
@@ -195,6 +195,26 @@ function uploadFile(file) {
     const estEl    = document.getElementById('progress-estimate');
     if (!prompt || !progress || !errorDiv) return;
 
+    // Client-side guardrails — reject bad input before wasting an upload
+    const MAX_FILE_BYTES = 150 * 1024 * 1024; // 150 MB hard cap (Render free tier limit)
+    const showEarlyError = msg => {
+        prompt.classList.add('d-none');
+        progress.classList.add('d-none');
+        errorDiv.classList.remove('d-none');
+        const el = document.getElementById('error-message');
+        if (el) el.textContent = msg;
+    };
+    if (!file || file.size === 0) {
+        return showEarlyError('That file looks empty — pick a valid .pcap / .pcapng capture.');
+    }
+    if (file.size > MAX_FILE_BYTES) {
+        return showEarlyError(`File is too large (${formatBytes(file.size)}). Maximum is ${formatBytes(MAX_FILE_BYTES)} — try trimming the capture (e.g. editcap) or splitting it.`);
+    }
+    const lowerName = (file.name || '').toLowerCase();
+    if (!lowerName.endsWith('.pcap') && !lowerName.endsWith('.pcapng')) {
+        return showEarlyError('Unsupported file type — only .pcap and .pcapng captures are accepted.');
+    }
+
     prompt.classList.add('d-none');
     errorDiv.classList.add('d-none');
     progress.classList.remove('d-none');
@@ -236,6 +256,8 @@ function uploadFile(file) {
                 if (statusEl) statusEl.textContent = 'Done!';
                 if (estEl) estEl.textContent = '';
                 saveRecentResult(id, file.name);
+                // Refresh the global scan counter so it ticks up live after each analysis
+                if (typeof loadSiteStats === 'function') loadSiteStats();
                 setTimeout(() => { window.location.href = 'results.html?id=' + encodeURIComponent(id); }, 300);
             })
             .catch(err => { clearInterval(timer); showError(err.message); });
@@ -609,6 +631,13 @@ function loadResults(analysisId) {
             const msgEl = document.getElementById('results-error-message');
             if (msgEl) msgEl.textContent = err.message;
             announce(`Failed to load results: ${err.message}`);
+            const hintEl = document.getElementById('error-hint');
+            if (hintEl) {
+                const m = /not found/i.test(err.message || '')
+                    ? 'The analysis ID may be invalid or the result expired. Re-upload the capture to generate a new report.'
+                    : 'If the backend is warming up (free-tier cold start can take ~30s), wait a moment and press Retry.';
+                hintEl.textContent = m;
+            }
         });
 }
 
@@ -627,6 +656,17 @@ function renderResults(data) {
     set('stat-packets',       formatNumber(summary.total_packets || 0));
     set('stat-duration',      formatDuration(timeRange.duration_seconds || 0));
     set('stat-analysis-time', ((data.analysis_time_seconds || 0).toFixed(2)) + 's');
+
+    // ── New: total alerts + critical/high stat cards ──
+    const alertCounts = summary.alert_counts || {};
+    const totalAlerts = (data.alerts || []).length;
+    const critHigh    = (alertCounts['Critical'] || 0) + (alertCounts['High'] || 0);
+    set('stat-total-alerts', formatNumber(totalAlerts));
+    set('stat-critical-high', formatNumber(critHigh),
+        (alertCounts['Critical'] || 0) + ' critical · ' + (alertCounts['High'] || 0) + ' high');
+
+    // ── New: risk verdict banner ──
+    renderRiskVerdict(alertCounts);
 
     // Build ip → hostname / geo / os lookups
     _hostnames = {};
@@ -675,6 +715,51 @@ function renderSeverityBadges(counts) {
         html += `<button class="nks-sev-tab nks-sev-${sevClass(sev)}${active}" data-sev="${escapeHtml(sev)}">${escapeHtml(sev)} <span class="nks-sev-tab-count">${n}</span></button>`;
     });
     el.innerHTML = html;
+}
+
+// ─── Risk verdict banner ──────────────────────────────────────────────────────
+
+function renderRiskVerdict(counts) {
+    const el    = document.getElementById('risk-verdict');
+    const icon  = document.getElementById('risk-verdict-icon');
+    const text  = document.getElementById('risk-verdict-text');
+    const sub   = document.getElementById('risk-verdict-sub');
+    if (!el || !text) return;
+
+    const c = counts['Critical'] || 0;
+    const h = counts['High']     || 0;
+    const m = counts['Medium']   || 0;
+    const l = counts['Low']      || 0;
+    const i = counts['Info']     || 0;
+    const total = c + h + m + l + i;
+
+    let cls, iconCls, label, hint;
+    if (c > 0) {
+        cls = 'nks-risk-danger'; iconCls = 'bi-shield-x';
+        label = `${c} Critical finding${c !== 1 ? 's' : ''} — immediate review required`;
+        hint  = h ? `plus ${h} high · ${m} medium` : `${m} medium`;
+    } else if (h > 0) {
+        cls = 'nks-risk-danger'; iconCls = 'bi-shield-exclamation';
+        label = `${h} High-severity finding${h !== 1 ? 's' : ''} — prioritize`;
+        hint  = `${m} medium · ${l} low`;
+    } else if (m > 0) {
+        cls = 'nks-risk-watch'; iconCls = 'bi-shield-half';
+        label = `${m} Medium finding${m !== 1 ? 's' : ''} — monitor`;
+        hint  = `${l} low · ${i} info`;
+    } else if (total > 0) {
+        cls = 'nks-risk-watch'; iconCls = 'bi-shield-check';
+        label = `No critical/high — ${total} low-severity finding${total !== 1 ? 's' : ''}`;
+        hint  = `${l} low · ${i} info`;
+    } else {
+        cls = 'nks-risk-clean'; iconCls = 'bi-shield-check';
+        label = 'No alerts detected — capture looks clean';
+        hint  = '';
+    }
+
+    el.className = 'alert nks-risk-verdict mb-3 ' + cls;
+    if (icon) { icon.className = 'bi ' + iconCls + ' fs-4'; }
+    text.textContent = label;
+    if (sub) sub.textContent = hint;
 }
 
 function filterBySev(sev) {
@@ -2323,6 +2408,12 @@ function initExportButtons(data) {
     if (csvBtn) {
         csvBtn.onclick = () => exportCsv(data.filename || data.id || 'nks0');
     }
+
+    // Print / Save as PDF — browser print dialog (CSS @media print hides chrome)
+    const printBtn = document.getElementById('print-btn');
+    if (printBtn) {
+        printBtn.onclick = () => window.print();
+    }
 }
 
 function exportCsv(baseName) {
@@ -2968,6 +3059,18 @@ function initResultsDelegation() {
     if (searchInput) searchInput.addEventListener('input', e => onIpSearchInput(e.target.value));
     const clearBtn = document.getElementById('search-clear-btn');
     if (clearBtn) clearBtn.addEventListener('click', clearIpSearch);
+
+    // Retry button on error state — re-fetch using the current analysis id
+    const retryBtn = document.getElementById('retry-btn');
+    if (retryBtn && _currentAnalysisId) {
+        retryBtn.addEventListener('click', () => {
+            const errEl = document.getElementById('error-state');
+            if (errEl) errEl.classList.add('d-none');
+            const loadingEl = document.getElementById('loading-state');
+            if (loadingEl) loadingEl.classList.remove('d-none');
+            loadResults(_currentAnalysisId);
+        });
+    }
 
     // Severity tab buttons (container innerHTML is replaced on re-render, delegation survives)
     const sevBadges = document.getElementById('severity-badges');

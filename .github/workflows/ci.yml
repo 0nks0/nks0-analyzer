@@ -4,31 +4,48 @@ on:
   push:
     branches: ["**"]
   pull_request:
-    branches: ["**"]
 
 jobs:
-  verify:
+  frontend-checks:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: '20'
           cache: npm
 
       - name: Install dev dependencies
         run: npm ci
 
-      # The site ships exactly as committed, so a stale ?v= means returning
-      # visitors keep old assets. This has shipped broken twice: results.html
-      # was once pinned to v1.3.5 against a v1.4.0 app, with an unversioned
-      # stylesheet. Exits non-zero if APP_VERSION and any asset ?v= disagree.
-      - name: Check asset version consistency
-        run: npm run check-version
+      # Cheap and catches typos in any file, including ones the test suite
+      # never loads.
+      - name: JS syntax check (all js files)
+        run: |
+          for f in $(find . -name '*.js' -not -path './.git/*' -not -path './node_modules/*'); do
+            node --check "$f" || exit 1
+          done
+
+      # The site ships exactly as committed, so a stale ?v= leaves returning
+      # visitors on old assets. scripts/bump_version.py is the single source of
+      # truth; --check asserts every reference agrees with APP_VERSION. It now
+      # covers css/style.css as well as js/app.js — the stylesheet was omitted
+      # before, which is how production ended up serving app.js?v=1.4.0 next to
+      # style.css?v=1.4.7.
+      - name: Version consistency check
+        run: python3 scripts/bump_version.py --check
 
       # Runs tests/index.html headlessly in jsdom. The suite itself stays
       # dependency-free so it can also just be opened in a browser.
       - name: Run tests
         run: npm test
+
+      - name: README link check
+        run: |
+          grep -oE 'https?://[^ )]+' README.md | while read -r url; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" -L --max-time 15 "$url" || echo "000")
+            if [ "$code" != "200" ]; then
+              echo "::warning::link may be broken ($code): $url"
+            fi
+          done

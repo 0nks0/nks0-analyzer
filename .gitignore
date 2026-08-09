@@ -3,6 +3,16 @@ Thumbs.db
 *.log
 .claude/
 
+# Sensitive planning docs — NEVER publish to this PUBLIC repo.
+# They live in /root/nks0-private-docs/ (chmod 600) outside the repo.
+# The daily exposure check (exposed_check.py) auto-removes them if re-added.
+docs/BUSINESS_PLAN.md
+docs/MULTI_TENANCY_DESIGN.md
+docs/NEW_RULE_PROPOSALS.md
+
+# Internal infra doc — never publish (exposes backend hosting/keep-alive method)
+docs/RENDER_KEEPALIVE.md
+
 # Dev-only dependency for the headless test runner. The site itself ships
 # exactly as committed and has no build step or runtime dependencies.
 # package-lock.json IS committed, so `npm ci` in CI is reproducible.
