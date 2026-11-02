@@ -13,6 +13,80 @@ const APP_VERSION = '1.7.0'; // bump this when releasing a new version
 function getApiBase() { return API_BASE; }
 function apiHeaders() { return {}; }
 
+// ─── Usage counts ─────────────────────────────────────────────────────────────
+//
+// Off unless ANALYTICS_PATH is a single path on API_BASE, for example
+// '/api/usage', and only after nks0-api implements that counter. An empty
+// string, or anything that is not a plain path, makes no request.
+//
+// Two events, nothing else: {event:'pageview'} and
+// {event:'analysis_run', mode:'guest'}. The guest label is the only mode this
+// frontend has — uploads go to /api/analyze/guest and there is no account.
+// Do Not Track and Global Privacy Control suppress the request entirely.
+// No cookie, no localStorage id, no capture filename, size, hash, or contents.
+
+let ANALYTICS_PATH = '';
+
+const _USAGE_MODES = { guest: 1 };
+
+function usageEndpoint() {
+    const path = (typeof ANALYTICS_PATH === 'string') ? ANALYTICS_PATH.trim() : '';
+    // One absolute path. Rejects empty, protocol-relative, query, and ".."
+    // so a bad value cannot retarget the request off the API origin.
+    if (!/^\/[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*$/.test(path)) return '';
+    return getApiBase() + path;
+}
+
+function usageOptedOut() {
+    try {
+        const dnt = navigator.doNotTrack || window.doNotTrack;
+        if (dnt === '1' || dnt === 'yes') return true;
+        if (navigator.globalPrivacyControl === true) return true;
+    } catch (_) {}
+    return false;
+}
+
+function usagePayload(eventName, mode) {
+    if (eventName === 'pageview') return { event: 'pageview' };
+    if (eventName === 'analysis_run' && _USAGE_MODES[mode] === 1) {
+        return { event: 'analysis_run', mode: mode };
+    }
+    return null;
+}
+
+function trackUsage(eventName, mode) {
+    const payload = usagePayload(eventName, mode);
+    const url = usageEndpoint();
+    if (!payload || !url || usageOptedOut()) return;
+    try {
+        // text/plain keeps this a simple CORS POST (no preflight). The body is
+        // still the JSON object above and nothing else. credentials omit so
+        // the browser does not attach cookies. no-referrer so a results URL,
+        // which carries the analysis id, is not sent along.
+        const p = fetch(url, {
+            method: 'POST',
+            mode: 'cors',
+            credentials: 'omit',
+            cache: 'no-store',
+            redirect: 'error',
+            referrerPolicy: 'no-referrer',
+            keepalive: true,
+            headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+            body: JSON.stringify(payload),
+        });
+        if (p && typeof p.catch === 'function') p.catch(function () {});
+    } catch (_) {}
+}
+
+function recordPageView() {
+    trackUsage('pageview');
+}
+
+// Takes no file, name, or result arguments, so a call site cannot attach them.
+function recordAnalysisRun() {
+    trackUsage('analysis_run', 'guest');
+}
+
 // ─── Connection status ────────────────────────────────────────────────────────
 
 function initConnectionBar() {
@@ -279,6 +353,7 @@ function uploadFile(file) {
             return showError(msg);
         }
         const data = JSON.parse(xhr.responseText);
+        if (data && data.id) recordAnalysisRun();
         startAnalysisProgress(data.id);
     };
 
@@ -3168,6 +3243,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // page bootstrap so tests don't hit the network or touch a real backend.
     if (window.NKS_TEST_MODE) return;
 
+    recordPageView();
     initTheme();
     initConnectionBar();
     if (document.getElementById('site-stats-bar')) loadSiteStats();

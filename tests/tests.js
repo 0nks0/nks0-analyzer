@@ -569,6 +569,175 @@
         return eq(stored, 'light', 'persisted value');
     });
 
+    // ── Usage counts ─────────────────────────────────────────────────────────
+    //
+    // The harness sets NKS_TEST_MODE, so DOMContentLoaded does not emit a
+    // page view. These cases call the same functions that hook does.
+    group('Usage counts');
+
+    function storageKeys() {
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i));
+        return keys.sort().join('\n');
+    }
+
+    function captureUsage(path, fn) {
+        const prevPath = ANALYTICS_PATH;
+        const prevFetch = window.fetch;
+        const calls = [];
+        ANALYTICS_PATH = path;
+        window.fetch = function (url, opts) {
+            calls.push({ url: String(url), opts: opts || {} });
+            return Promise.resolve({ ok: true });
+        };
+        try {
+            fn();
+            return calls;
+        } finally {
+            ANALYTICS_PATH = prevPath;
+            window.fetch = prevFetch;
+        }
+    }
+
+    function withNav(prop, value, fn) {
+        const nav = navigator;
+        const prev = Object.prototype.hasOwnProperty.call(nav, prop)
+            ? Object.getOwnPropertyDescriptor(nav, prop) : null;
+        Object.defineProperty(nav, prop, { configurable: true, get: function () { return value; } });
+        try { return fn(); }
+        finally {
+            delete nav[prop];
+            if (prev) Object.defineProperty(nav, prop, prev);
+        }
+    }
+
+    check('no analytics calls when the path is empty', () => {
+        const calls = captureUsage('', () => {
+            recordPageView();
+            recordAnalysisRun();
+            trackUsage('analysis_run', 'guest');
+            trackUsage('pageview');
+        });
+        return eq(calls.length, 0, 'fetch calls');
+    });
+
+    check('a non-path config makes no request', () => {
+        const calls = captureUsage('https://evil.example/count', () => {
+            recordPageView();
+            recordAnalysisRun();
+        });
+        const calls2 = captureUsage('//evil.example/count', () => recordPageView());
+        if (calls.length !== 0) return 'absolute URL was requested';
+        return eq(calls2.length, 0, 'protocol-relative calls');
+    });
+
+    check('Do Not Track sends nothing when analytics is configured', () => {
+        const viaNav = withNav('doNotTrack', '1', () =>
+            captureUsage('/api/usage', () => { recordPageView(); recordAnalysisRun(); }));
+        if (viaNav.length !== 0) return 'navigator.doNotTrack=1 still sent';
+        const prev = window.doNotTrack;
+        window.doNotTrack = 'yes';
+        try {
+            const viaWin = captureUsage('/api/usage', () => { recordPageView(); recordAnalysisRun(); });
+            return eq(viaWin.length, 0, 'window.doNotTrack calls');
+        } finally {
+            if (prev === undefined) delete window.doNotTrack;
+            else window.doNotTrack = prev;
+        }
+    });
+
+    check('Global Privacy Control sends nothing when analytics is configured', () => {
+        const calls = withNav('globalPrivacyControl', true, () =>
+            captureUsage('/api/usage', () => { recordPageView(); recordAnalysisRun(); }));
+        return eq(calls.length, 0, 'fetch calls');
+    });
+
+    check('a filename passed as the mode is not sent', () => {
+        const calls = captureUsage('/api/usage', () => {
+            trackUsage('analysis_run', 'quarterly-secret.pcap');
+            trackUsage('analysis_run', 'guest', { filename: 'quarterly-secret.pcap', bytes: 'PCAPBODYMARKER' });
+        });
+        if (calls.length !== 1) return 'expected exactly the guest event, got ' + calls.length;
+        const body = calls[0].opts.body;
+        if (String(body).indexOf('quarterly-secret') !== -1) return 'filename leaked into the body';
+        if (String(body).indexOf('PCAPBODYMARKER') !== -1) return 'contents leaked into the body';
+        return eq(body, '{"event":"analysis_run","mode":"guest"}');
+    });
+
+    check('an accepted analysis event has no filename, contents, size, or id', () => {
+        const wrap = document.createElement('div');
+        wrap.innerHTML = [
+            '<div id="upload-prompt"></div>',
+            '<div id="upload-progress" class="d-none"></div>',
+            '<div id="upload-error" class="d-none"></div>',
+            '<p id="progress-filename"></p>',
+            '<p id="progress-status"></p>',
+            '<div id="upload-progress-bar"></div>',
+            '<p id="progress-estimate"></p>',
+            '<p id="upload-size-warn" class="d-none"></p>',
+            '<p id="error-message"></p>',
+        ].join('');
+        document.body.appendChild(wrap);
+
+        const OrigXHR = window.XMLHttpRequest;
+        const origPoll = pollJob;
+        const origInterval = window.setInterval;
+        function FakeXHR() {
+            this.upload = {};
+            this.status = 200;
+            this.responseText = '{"id":"job-SECRET-ID"}';
+        }
+        FakeXHR.prototype.open = function (method, url) { this._method = method; this._url = url; };
+        FakeXHR.prototype.send = function (body) { this._body = body; if (this.onload) this.onload(); };
+        window.XMLHttpRequest = FakeXHR;
+        pollJob = function () { return new Promise(function () {}); };
+        window.setInterval = function () { return 0; };
+
+        const marker = 'PCAPBODYMARKER';
+        const filename = 'quarterly-secret.pcap';
+        let calls;
+        try {
+            calls = captureUsage('/api/usage', () => {
+                uploadFile(new File([marker], filename, { type: 'application/vnd.tcpdump.pcap' }));
+            });
+        } finally {
+            window.XMLHttpRequest = OrigXHR;
+            pollJob = origPoll;
+            window.setInterval = origInterval;
+            wrap.remove();
+        }
+
+        if (!calls || calls.length !== 1) return 'expected one analytics call, got ' + (calls ? calls.length : 'none');
+        const req = calls[0];
+        const blob = req.url + '\n' + String(req.opts.body);
+        if (blob.indexOf(filename) !== -1) return 'filename leaked into the analytics request';
+        if (blob.indexOf(marker) !== -1) return 'capture contents leaked into the analytics request';
+        if (blob.indexOf('job-SECRET-ID') !== -1) return 'analysis id leaked into the analytics request';
+        if (blob.indexOf(String(marker.length)) !== -1) return 'file size leaked into the analytics request';
+        if (req.opts.credentials !== 'omit') return 'request would attach cookies';
+        if (req.url !== 'https://nks0-api.onrender.com/api/usage') return 'request left the API origin: ' + req.url;
+        return eq(req.opts.body, '{"event":"analysis_run","mode":"guest"}');
+    });
+
+    check('analytics sets no cookie and writes no localStorage id', () => {
+        const cookieBefore = document.cookie;
+        const keysBefore = storageKeys();
+        const calls = captureUsage('/api/usage', () => {
+            recordPageView();
+            recordAnalysisRun();
+        });
+        if (document.cookie !== cookieBefore) return 'document.cookie changed from ' + JSON.stringify(cookieBefore) + ' to ' + JSON.stringify(document.cookie);
+        if (storageKeys() !== keysBefore) return 'localStorage keys changed';
+        if (calls.length !== 2) return 'expected pageview and analysis_run, got ' + calls.length;
+        if (calls.some(c => c.opts.credentials !== 'omit')) return 'a request did not omit cookies';
+        if (calls.some(c => c.opts.referrerPolicy !== 'no-referrer')) return 'a request did not suppress the referrer';
+        if (calls[0].opts.body !== '{"event":"pageview"}') return 'pageview payload was ' + calls[0].opts.body;
+        if (calls[1].opts.body !== '{"event":"analysis_run","mode":"guest"}') return 'analysis payload was ' + calls[1].opts.body;
+        const pageKeys = Object.keys(JSON.parse(calls[0].opts.body));
+        if (pageKeys.length !== 1 || pageKeys[0] !== 'event') return 'pageview carried extra properties';
+        return true;
+    });
+
     // ── Summary ──────────────────────────────────────────────────────────────
     const summary = document.getElementById('summary');
     summary.textContent = failed === 0

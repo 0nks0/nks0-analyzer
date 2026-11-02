@@ -40,6 +40,19 @@ PCAP files can contain sensitive data (credentials, internal IPs, real traffic).
 - Detected cleartext credentials are held in browser memory only and are not persisted to disk or the DOM unless you explicitly reveal them.
 - **Do not upload captures containing data you are not authorized to share.** Sanitize sensitive traffic first (e.g. with `tcprewrite` / `editcap`) when in doubt.
 
+### Usage counts
+
+Page views and analyses started can be counted. This is **off** unless `ANALYTICS_PATH` in `js/app.js` is set to a path on the existing API, such as `/api/usage`. An empty value, or any value that is not a plain path, means the browser makes no analytics request.
+
+When it is on, each count is a POST to that path on `https://nks0-api.onrender.com` (already allowed by the page Content-Security-Policy). The body is JSON text with one of these two shapes and no other fields:
+
+- `{"event":"pageview"}` — one per load of `index.html` or `results.html`
+- `{"event":"analysis_run","mode":"guest"}` — once, when a guest upload is accepted. `guest` is the only mode: there is no signed-in upload
+
+The request does not include the capture, its filename, file size, hashes, packet contents, alerts, findings, or the analysis id. The page does not set an analytics cookie, does not store an analytics id in `localStorage`, and sends the POST with cookies omitted and no referrer. If Do Not Track is `1` or `yes` (`navigator.doNotTrack` or `window.doNotTrack`), or Global Privacy Control is on (`navigator.globalPrivacyControl === true`), nothing is sent.
+
+The counter is expected to store aggregate totals only and not to record IP addresses. Until `ANALYTICS_PATH` is set, nothing is collected.
+
 See [SECURITY.md](SECURITY.md) for how to report vulnerabilities.
 
 ---
