@@ -83,3 +83,7 @@ Active development — more detection rules and visualizations on the way.
 ## Contact
 
 Enquiries • donations • collaborations — **nirkacher@gmail.com**
+
+## Support the project
+
+[Sponsor on GitHub](https://github.com/sponsors/0nks0)

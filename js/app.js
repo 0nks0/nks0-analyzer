@@ -331,11 +331,17 @@ function resetUpload() {
 // kept per-analysis in localStorage, the same place Recent Analyses already
 // uses: enough to work through a noisy capture in one sitting, and honest
 // about being device-local rather than pretending to be an account.
+//
+// Marks are per alert, not per rule. Several alerts share one rule id
+// (every R002 brute-force flow, for example). The key is the rule id plus
+// the flow 5-tuple and the first timestamp, normalized so a re-analysis of
+// the same capture produces the same key. When none of those fields exist,
+// the key is a hash of the rule id and the message.
 
 const _TRIAGE_KEY = 'nks0_triage';
 const _TRIAGE_MAX_ANALYSES = 20;   // bound growth; oldest evicted first
 
-// alert_id -> 'reviewed' | 'fp'
+// triage key -> 'reviewed' | 'fp'
 let _triage = {};
 let _showReviewed = true;
 let _showFp = true;
@@ -378,8 +384,142 @@ function saveTriage(analysisId) {
     _triageWriteAll(all);
 }
 
+function _fnv1a(str) {
+    // Stable, non-cryptographic. Triage keys are not a security boundary.
+    let h = 0x811c9dc5;
+    const s = String(str);
+    for (let i = 0; i < s.length; i++) {
+        h ^= s.charCodeAt(i);
+        h = Math.imul(h, 0x01000193);
+    }
+    return (h >>> 0).toString(16).padStart(8, '0');
+}
+
+function _flowField(alert, names) {
+    const d = alert.details && typeof alert.details === 'object' ? alert.details : null;
+    const ev = alert.evidence && typeof alert.evidence === 'object' ? alert.evidence : null;
+    const fk = (ev && ev.flow_key && typeof ev.flow_key === 'object') ? ev.flow_key
+             : (d && d.flow_key && typeof d.flow_key === 'object') ? d.flow_key
+             : null;
+    const sources = [d, fk, ev];
+    for (let i = 0; i < names.length; i++) {
+        for (let s = 0; s < sources.length; s++) {
+            const src = sources[s];
+            if (!src) continue;
+            const v = src[names[i]];
+            if (v != null && v !== '') return v;
+        }
+    }
+    return '';
+}
+
+function _normToken(v) {
+    if (typeof v === 'number' && Number.isFinite(v)) return String(v);
+    if (typeof v === 'string') return v.trim().toLowerCase();
+    return '';
+}
+
+function _normPort(v) {
+    if (typeof v === 'number' && Number.isFinite(v)) return String(Math.trunc(v));
+    if (typeof v === 'string') {
+        const s = v.trim();
+        if (!s) return '';
+        if (/^\d+$/.test(s)) return String(parseInt(s, 10));
+        return s.toLowerCase();
+    }
+    return '';
+}
+
+function _normTs(v) {
+    if (typeof v === 'number' && Number.isFinite(v)) return String(v);
+    if (typeof v === 'string') {
+        const s = v.trim();
+        if (!s) return '';
+        // "1767225601.0" and 1767225601 are the same instant.
+        if (/^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(s)) {
+            const n = Number(s);
+            if (Number.isFinite(n)) return String(n);
+        }
+        return s;
+    }
+    return '';
+}
+
+// k|<rule>|<src>|<sport>|<dst>|<dport>|<proto>|<first_seen>
+// or, when the flow and the timestamp are all missing:
+// k|h|<rule>|<fnv(rule + message)>
+// The "k|" prefix is how migration tells a new key from a legacy rule id.
+function alertTriageKey(a) {
+    try {
+        if (!a || typeof a !== 'object') return '';
+        const rule = a.id == null ? '' : String(a.id);
+        const src   = _normToken(_flowField(a, ['src_ip', 'src', 'source_ip', 'ip']));
+        const sport = _normPort(_flowField(a, ['src_port', 'sport', 'source_port']));
+        const dst   = _normToken(_flowField(a, ['dst_ip', 'dst', 'dest_ip', 'target_ip']));
+        const dport = _normPort(_flowField(a, ['dst_port', 'dport', 'dest_port']));
+        const proto = _normToken(_flowField(a, ['protocol', 'proto']));
+        const ts    = _normTs(a.first_seen);
+        if (src || sport || dst || dport || proto || ts) {
+            return ['k', rule, src, sport, dst, dport, proto, ts].join('|');
+        }
+        const msg = (typeof a.message === 'string') ? a.message : '';
+        return 'k|h|' + rule + '|' + _fnv1a(rule + '\n' + msg);
+    } catch (_) {
+        return '';
+    }
+}
+
 function alertMark(alertId) {
     return _triage[alertId] || null;
+}
+
+// Per-alert key first. A bare rule id still matches until migrateTriageKeys
+// rewrites it, so a mark saved by an older build shows up on first paint.
+function alertMarkFor(a) {
+    if (!a || typeof a !== 'object') return null;
+    const k = alertTriageKey(a);
+    if (k && _triage[k]) return _triage[k];
+    if (a.id != null && a.id !== '') {
+        const legacy = _triage[String(a.id)];
+        if (legacy) return legacy;
+    }
+    return null;
+}
+
+// An old mark was stored under the rule id and meant "every alert from this
+// rule". Copy it onto each current alert of that rule, then drop the rule
+// key so later edits are independent. A per-alert key that is already set
+// is left alone. Rule ids that are not in this result are kept.
+function migrateTriageKeys(alerts) {
+    if (!_triage || typeof _triage !== 'object' || !alerts || !alerts.length) return false;
+    const byRule = Object.create(null);
+    for (let i = 0; i < alerts.length; i++) {
+        const a = alerts[i];
+        if (!a || a.id == null || a.id === '') continue;
+        const rule = String(a.id);
+        if (!byRule[rule]) byRule[rule] = [];
+        byRule[rule].push(a);
+    }
+    let changed = false;
+    Object.keys(_triage).forEach(key => {
+        if (key.indexOf('k|') === 0) return;
+        const group = byRule[key];
+        if (!group) return;
+        const mark = _triage[key];
+        if (mark !== 'reviewed' && mark !== 'fp') return;
+        let copied = false;
+        group.forEach(a => {
+            const nk = alertTriageKey(a);
+            if (!nk || nk === key) return;
+            if (_triage[nk] == null) _triage[nk] = mark;
+            copied = true;
+        });
+        if (!copied) return;
+        delete _triage[key];
+        changed = true;
+    });
+    if (changed) saveTriage(_currentAnalysisId);
+    return changed;
 }
 
 function setAlertMark(alertId, mark) {
@@ -402,7 +542,7 @@ function toggleFalsePositive(alertId) {
 }
 
 function _alertMatchesTriage(a) {
-    const mark = alertMark(a.id);
+    const mark = alertMarkFor(a);
     if (mark === 'reviewed' && !_showReviewed) return false;
     if (mark === 'fp' && !_showFp) return false;
     return true;
@@ -411,7 +551,7 @@ function _alertMatchesTriage(a) {
 function triageCounts() {
     let reviewed = 0, fp = 0;
     _allAlerts.forEach(a => {
-        const m = alertMark(a.id);
+        const m = alertMarkFor(a);
         if (m === 'reviewed') reviewed++;
         else if (m === 'fp') fp++;
     });
@@ -776,6 +916,8 @@ function filterBySev(sev) {
 // ─── Filter bar ───────────────────────────────────────────────────────────────
 
 function renderAlerts(alerts) {
+    // Expand any rule-scoped marks before the first paint of this list.
+    migrateTriageKeys(alerts);
     _allAlerts   = alerts;
     _activeSevTab = 'All';
     _checkedSev  = new Set(alerts.map(a => a.severity || 'Info'));
@@ -1127,18 +1269,20 @@ function renderAlertList(alerts) {
 
         // Triage controls sit outside the summary button — a button must never
         // contain other interactive controls.
-        const mark = alertMark(alert.id);
+        const tkey = alertTriageKey(alert);
+        const mark = alertMarkFor(alert);
         const aid = escapeHtml(String(alert.id || ''));
-        const triageHtml = alert.id
+        const keyAttr = escapeHtml(tkey);
+        const triageHtml = tkey
             ? `<button type="button" class="nks-mark-btn${mark === 'reviewed' ? ' active' : ''}"
-                    data-mark="reviewed" data-alert-id="${aid}"
+                    data-mark="reviewed" data-triage-key="${keyAttr}"
                     aria-pressed="${mark === 'reviewed'}"
                     title="${mark === 'reviewed' ? 'Clear reviewed' : 'Mark reviewed'}"
                     aria-label="${mark === 'reviewed' ? 'Clear reviewed' : 'Mark reviewed'}">
                     <i class="bi bi-check2-circle" aria-hidden="true"></i>
                </button>
                <button type="button" class="nks-mark-btn${mark === 'fp' ? ' active' : ''}"
-                    data-mark="fp" data-alert-id="${aid}"
+                    data-mark="fp" data-triage-key="${keyAttr}"
                     aria-pressed="${mark === 'fp'}"
                     title="${mark === 'fp' ? 'Clear false positive' : 'Mark false positive'}"
                     aria-label="${mark === 'fp' ? 'Clear false positive' : 'Mark false positive'}">
@@ -2312,7 +2456,7 @@ function _reportKv(label, value) {
 function _reportAlert(a) {
     const sev = sevClass(a.severity);
     const d = a.details || {};
-    const mark = alertMark(a.id);
+    const mark = alertMarkFor(a);
 
     const rows = [
         _reportKv('Rule', a.id),
@@ -3163,7 +3307,7 @@ function initResultsDelegation() {
             const markBtn = e.target.closest('.nks-mark-btn');
             if (markBtn) {
                 e.stopPropagation();
-                const id = markBtn.dataset.alertId;
+                const id = markBtn.getAttribute('data-triage-key');
                 if (markBtn.dataset.mark === 'fp') toggleFalsePositive(id);
                 else toggleReviewed(id);
                 return;
