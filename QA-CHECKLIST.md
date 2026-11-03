@@ -12,7 +12,7 @@ Pick a small `.pcap`/`.pcapng` file (under 20 MB) for the upload tests.
 - [ ] Drag-and-drop highlights the drop zone
 - [ ] Selecting a non-`.pcap`/`.pcapng` file shows a client-side error
 - [ ] Selecting an empty file shows a client-side error
-- [ ] Selecting a file > 150 MB shows a size-limit error
+- [ ] Selecting a file > 100 MB shows a size-limit error
 - [ ] Upload progress bar moves (0 → 40 %) during upload
 - [ ] After upload: status switches to `Analyzing…`, progress climbs toward 100 %
 - [ ] After completion: automatic redirect to `results.html?id=<id>`

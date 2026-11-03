@@ -196,7 +196,7 @@ function uploadFile(file) {
     if (!prompt || !progress || !errorDiv) return;
 
     // Client-side guardrails — reject bad input before wasting an upload
-    const MAX_FILE_BYTES = 150 * 1024 * 1024; // 150 MB hard cap (Render free tier limit)
+    const MAX_FILE_BYTES = 100 * 1024 * 1024; // 100 MB hard cap (matches the backend's NKS0_GUEST_MAX_UPLOAD_MB default)
     const showEarlyError = msg => {
         prompt.classList.add('d-none');
         progress.classList.add('d-none');
