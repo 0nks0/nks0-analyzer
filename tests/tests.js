@@ -360,6 +360,150 @@
             ? true : 'tactics were not all re-enabled on a fresh render';
     });
 
+    // ── ATT&CK block as the API actually sends it ───────────────────────────
+    // Built from a real /api/results payload (beacon-demo-docnet.pcap).
+    // Mapped techniques live on alert.details.mitre; most alerts omit the
+    // block. The UI used to read alert.mitre, so every one of these rendered
+    // as Unmapped.
+    group('ATT&CK mapping from the API');
+
+    const docnet = window.NKS_BEACON_DOCNET;
+    if (!docnet || !Array.isArray(docnet.alerts)) {
+        check('beacon-demo-docnet fixture is loaded', () => 'tests/fixtures/beacon-demo-docnet.js did not load');
+    } else {
+        const docnetAlerts = docnet.alerts;
+        const docnetMapped = docnetAlerts.find(a => a.details && a.details.mitre);
+        const docnetPlain = docnetAlerts.find(a => !a.details || !a.details.mitre);
+
+        check('the real payload stores techniques on details.mitre', () => {
+            if (!docnetMapped) return 'fixture has no details.mitre block';
+            if (docnetMapped.mitre) return 'fixture alert also has a top-level mitre, so it does not prove the read path';
+            const ids = docnetMapped.details.mitre.techniques.map(t => t.id);
+            return eq(docnetMapped.details.mitre.tactic, 'Command and Control', 'tactic')
+                && eq(ids[0], 'T1071.004', 'first technique')
+                && eq(ids[1], 'T1048.003', 'second technique');
+        });
+
+        check('alertTactic reads details.mitre and leaves unmapped alerts alone', () => {
+            if (alertTactic(docnetMapped) !== 'Command and Control') return 'mapped alert was Unmapped';
+            return eq(alertTactic(docnetPlain), 'Unmapped');
+        });
+
+        check('finding card shows the real technique ids and does not rewrite them', () => {
+            const c = renderList([docnetMapped]);
+            const ids = [].map.call(c.querySelectorAll('.nks-mitre-tag'), el => el.textContent);
+            if (ids.indexOf('T1071.004') === -1) return 'T1071.004 missing from the card';
+            if (ids.indexOf('T1048.003') === -1) return 'T1048.003 missing from the card';
+            if (ids.indexOf('T1071.001') !== -1) return 'frontend rewrote a technique id';
+            if (c.textContent.indexOf('Command and Control') === -1) return 'tactic missing from the card';
+            return eq(ids.length, 2, 'technique tags');
+        });
+
+        check('an unmapped alert from the same response has no technique tag', () => {
+            const c = renderList([docnetPlain]);
+            return eq(c.querySelectorAll('.nks-mitre-tag').length, 0, 'tags');
+        });
+
+        check('tactic filter keeps the mapped alert and hides the others', () => {
+            renderList(docnetAlerts);
+            _checkedTactics = new Set(['Command and Control']);
+            applyFilters();
+            const rows = document.querySelectorAll('#alerts-container .nks-alert-item');
+            if (rows.length !== 1) return `expected 1 row, got ${rows.length}`;
+            return rows[0].textContent.indexOf('T1071.004') !== -1
+                ? true : 'the surviving row is not the mapped alert';
+        });
+
+        check('deep link opens the card that carries details.mitre', () => {
+            renderList(docnetAlerts);
+            const item = document.querySelector('.nks-mitre-tag').closest('.nks-alert-item');
+            if (!item) return 'mapped card not in the list';
+            collapseAllAlerts();
+            window.location.hash = '#alert-' + item.getAttribute('data-idx');
+            const ok = applyAlertHash({ instant: true });
+            window.location.hash = '';
+            if (!ok) return 'applyAlertHash reported failure';
+            if (!item.classList.contains('expanded')) return 'deep link did not expand the mapped alert';
+            const ids = [].map.call(item.querySelectorAll('.nks-mitre-tag'), el => el.textContent);
+            if (ids.indexOf('T1071.004') === -1 || ids.indexOf('T1048.003') === -1) {
+                return 'expanded card is missing techniques from details.mitre';
+            }
+            return true;
+        });
+
+        check('standalone report and CSV export use details.mitre', () => {
+            const data = { id: docnet.id, filename: docnet.filename, summary: {}, alerts: docnetAlerts };
+            const html = buildStandaloneReport(data);
+            if (html.indexOf('T1071.004') === -1) return 'report missing T1071.004';
+            if (html.indexOf('T1048.003') === -1) return 'report missing T1048.003';
+            if (html.indexOf('Command and Control') === -1) return 'report missing tactic';
+            if (html.indexOf('T1071.001') !== -1) return 'report rewrote a technique id';
+            const csv = alertsToCsv(docnetAlerts);
+            if (csv.indexOf('ATT&CK Tactic') === -1) return 'CSV missing tactic column';
+            if (csv.indexOf('T1071.004') === -1) return 'CSV missing T1071.004';
+            if (csv.indexOf('Command and Control') === -1) return 'CSV missing tactic';
+            return true;
+        });
+
+        check('details.mitre wins when a legacy alert.mitre is also present', () => {
+            const both = alert({
+                id: 'BOTH',
+                category: 'UnexpectedHTTPService',
+                mitre: { tactic: 'Discovery', techniques: [{ id: 'T1046', name: 'Scanning' }] },
+                details: {
+                    dst_ip: '203.0.113.50',
+                    dst_port: 8081,
+                    mitre: docnetMapped.details.mitre,
+                },
+            });
+            if (alertTactic(both) !== 'Command and Control') return 'tactic filter kept the legacy tactic';
+            const c = renderList([both]);
+            const ids = [].map.call(c.querySelectorAll('.nks-mitre-tag'), el => el.textContent);
+            if (ids.indexOf('T1071.004') === -1) return 'card did not prefer details.mitre';
+            if (ids.indexOf('T1046') !== -1) return 'card also showed the legacy technique';
+            const html = buildStandaloneReport({ summary: {}, alerts: [both] });
+            if (html.indexOf('T1046') !== -1) return 'report showed the legacy technique';
+            return html.indexOf('T1071.004') !== -1 ? true : 'report dropped details.mitre';
+        });
+
+        check('a top-level alert.mitre still maps when details.mitre is absent', () => {
+            const legacy = alert({
+                id: 'LEGACY',
+                category: 'UnexpectedHTTPService',
+                mitre: { tactic: 'Discovery', techniques: [{ id: 'T1046', name: 'Network Service Discovery' }] },
+            });
+            if (alertTactic(legacy) !== 'Discovery') return 'fallback tactic was not read';
+            const c = renderList([legacy]);
+            const tag = c.querySelector('.nks-mitre-tag');
+            if (!tag || tag.textContent !== 'T1046') return 'fallback technique missing from the card';
+            const csv = alertsToCsv([legacy]);
+            return csv.indexOf('T1046') !== -1 && csv.indexOf('Discovery') !== -1
+                ? true : 'CSV did not fall back to alert.mitre';
+        });
+
+        check('partial and odd technique shapes do not crash and are not remapped', () => {
+            // Tactic only, bare id strings, empty block, and a parent id the API
+            // may still emit until its own tag correction lands.
+            const tacticOnly = alertTactic({ details: { mitre: { tactic: 'Lateral Movement' } } });
+            if (tacticOnly !== 'Lateral Movement') return 'tactic-only block was dropped';
+            const bare = alertMitre({ details: { mitre: { tactic: 'Discovery', techniques: ['T1046'] } } });
+            if (!bare || bare.techniques[0].id !== 'T1046') return 'bare technique id was dropped';
+            if (alertMitre({ details: { mitre: {} } }) !== null) return 'empty block should fall through';
+            if (alertMitre(null) !== null || alertTactic(undefined) !== 'Unmapped') return 'missing alert threw or mapped';
+            const parent = alert({
+                details: { mitre: { tactic: 'Command and Control', techniques: [{ id: 'T1071', name: 'Application Layer Protocol' }] } },
+            });
+            const c = renderList([parent]);
+            const tag = c.querySelector('.nks-mitre-tag');
+            if (!tag || tag.textContent !== 'T1071') return 'parent technique id was rewritten: ' + (tag && tag.textContent);
+            // Garbage in the block must not throw.
+            alertMitre({ details: { mitre: { tactic: 12, techniques: [null, 3, { id: null }, { name: 'nameless' }] } } });
+            alertMitre({ details: 'nope', mitre: { tactic: 'Exfiltration', techniques: [{ id: 'T1048' }] } });
+            return alertTactic({ mitre: { tactic: 'Exfiltration', techniques: [{ id: 'T1048' }] } }) === 'Exfiltration'
+                ? true : 'legacy block ignored after a non-object details';
+        });
+    }
+
     // ── Triage ───────────────────────────────────────────────────────────────
     group('Local triage state');
 

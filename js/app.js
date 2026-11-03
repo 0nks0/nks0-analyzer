@@ -792,8 +792,55 @@ function renderAlerts(alerts) {
 // actually asks, and it cuts across detection categories.
 const UNMAPPED_TACTIC = 'Unmapped';
 
+// The API writes the ATT&CK block on alert.details.mitre. A captured result
+// (beacon-demo-docnet) looks like:
+//   { tactic: "Command and Control",
+//     techniques: [{ id: "T1071.004", name: "Application Layer Protocol: DNS" }, ...] }
+// Alerts with no mapping omit the block entirely. Older payloads, and the
+// fixtures this UI was first written against, put the same object on
+// alert.mitre. Prefer details.mitre and fall back to alert.mitre.
+// Technique ids are shown exactly as the backend sent them — parent vs
+// sub-technique corrections (T1071 → T1071.001) belong in the API, not here.
+function _normalizeMitre(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const tactic = typeof raw.tactic === 'string' ? raw.tactic.trim() : '';
+    const techniques = [];
+    if (Array.isArray(raw.techniques)) {
+        raw.techniques.forEach(t => {
+            // The live API emits { id, name }. A bare technique id in the same
+            // list is the same shape with the name omitted, not a different mapping.
+            if (typeof t === 'string') {
+                const id = t.trim();
+                if (id) techniques.push({ id: id, name: '' });
+                return;
+            }
+            if (!t || typeof t !== 'object' || Array.isArray(t)) return;
+            const id = t.id == null ? '' : String(t.id).trim();
+            const name = t.name == null ? '' : String(t.name).trim();
+            if (id || name) techniques.push({ id: id, name: name });
+        });
+    }
+    if (!tactic && !techniques.length) return null;
+    return { tactic: tactic, techniques: techniques };
+}
+
+function alertMitre(a) {
+    if (!a || typeof a !== 'object') return null;
+    const details = a.details;
+    const fromDetails = _normalizeMitre(details && typeof details === 'object' ? details.mitre : null);
+    if (fromDetails) return fromDetails;
+    return _normalizeMitre(a.mitre);
+}
+
+function _mitreTechniqueText(t) {
+    if (!t) return '';
+    if (t.id && t.name) return t.id + ' (' + t.name + ')';
+    return t.id || t.name || '';
+}
+
 function alertTactic(a) {
-    return (a && a.mitre && a.mitre.tactic) ? a.mitre.tactic : UNMAPPED_TACTIC;
+    const m = alertMitre(a);
+    return (m && m.tactic) ? m.tactic : UNMAPPED_TACTIC;
 }
 
 function renderFilterBar(alerts) {
@@ -1305,6 +1352,9 @@ function _renderAlertBody(alert) {
         case 'MultiVectorRecon':      html = _renderCorrelation(alert); break;
         default:                      html = _renderDefault(alert); break;
     }
+    // One read path for every finding card, including categories whose
+    // renderer never mentioned ATT&CK. details.mitre wins over alert.mitre.
+    html += _mitreHtml(alertMitre(alert));
     html += _remediationHtml(cat);
     return html;
     } catch (e) {
@@ -1321,11 +1371,17 @@ function _chip(val, label) {
 }
 
 function _mitreHtml(mitre) {
-    if (!mitre || !Array.isArray(mitre.techniques) || !mitre.techniques.length) return '';
-    const tactic = mitre.tactic ? `<span class="text-secondary" style="font-size:0.72rem">${escapeHtml(mitre.tactic)} — </span>` : '';
-    const techs  = mitre.techniques.map(t =>
-        `<span class="nks-mitre-tag" title="${escapeHtml(t.name || '')}">${escapeHtml(t.id)}</span>`
-    ).join('');
+    const m = _normalizeMitre(mitre);
+    if (!m) return '';
+    const tactic = m.tactic
+        ? `<span class="text-secondary" style="font-size:0.72rem">${escapeHtml(m.tactic)}${m.techniques.length ? ' — ' : ''}</span>`
+        : '';
+    const techs = m.techniques.map(t => {
+        const label = t.id || t.name;
+        if (!label) return '';
+        return `<span class="nks-mitre-tag" title="${escapeHtml(t.name || '')}">${escapeHtml(label)}</span>`;
+    }).join('');
+    if (!tactic && !techs) return '';
     return `<div class="nks-detail-section"><div class="nks-detail-label">MITRE ATT&amp;CK</div><div>${tactic}${techs}</div></div>`;
 }
 
@@ -1348,7 +1404,6 @@ function _renderPortScan(alert) {
         learned.forEach(p => { html += `<span class="nks-port-badge" title="${escapeHtml(String(p.response_summary || ''))}">:${p.port}</span>`; });
         html += '</div></div>';
     }
-    html += _mitreHtml(d.mitre);
     return html;
 }
 
@@ -1432,7 +1487,6 @@ function _renderCredentials(alert) {
         });
     });
     html += `</tbody></table></div></div>`;
-    html += _mitreHtml((alert.details || {}).mitre);
     return html;
 }
 
@@ -1464,7 +1518,6 @@ function _renderBeaconing(alert) {
             </div>
         </div>`;
     }
-    html += _mitreHtml(d.mitre);
     return html;
 }
 
@@ -1483,7 +1536,6 @@ function _renderStunTunnel(alert) {
             ${vpnPeers.map(p => `<span class="nks-peer-badge">${escapeHtml(String(p))}</span>`).join('')}
         </div></div>`;
     }
-    html += _mitreHtml(d.mitre);
     return html;
 }
 
@@ -1511,7 +1563,6 @@ function _renderSuspiciousDns(alert) {
         });
         html += '</div>';
     }
-    html += _mitreHtml(d.mitre);
     return html;
 }
 
@@ -1580,7 +1631,6 @@ function _renderCorrelation(alert) {
         });
         html += '</div></div>';
     }
-    html += _mitreHtml(d.mitre);
     return html;
 }
 
@@ -1602,7 +1652,6 @@ function _renderHttpAnomaly(alert) {
     html += `<div class="nks-detail-section"><div class="nks-detail-label">Attacker → Target</div>
         <div>${_ipLabel(d.src_ip)} <span class="text-secondary">→</span> ${_ipLabel(d.dst_ip)}:<strong>${escapeHtml(String(d.dst_port || '?'))}</strong></div>
     </div>`;
-    html += _mitreHtml(d.mitre);
     return html;
 }
 
@@ -1619,7 +1668,6 @@ function _renderLargeFlow(alert) {
     html += `<div class="nks-detail-section"><div class="nks-detail-label">Transfer</div>
         <div>${_ipLabel(d.src_ip)} <span class="text-secondary">→</span> ${_ipLabel(d.dst_ip)}:<strong>${escapeHtml(String(d.dst_port || '?'))}</strong></div>
     </div>`;
-    html += _mitreHtml(d.mitre);
     return html;
 }
 
@@ -1855,7 +1903,6 @@ function _renderLdapEnum(alert) {
         });
         html += '</div></div>';
     }
-    html += _mitreHtml(d.mitre);
     return html;
 }
 
@@ -1878,7 +1925,6 @@ function _renderKerberosRoasting(alert) {
             <div style="font-size:0.82rem">${escapeHtml(d.attack_type)}</div>
         </div>`;
     }
-    html += _mitreHtml(d.mitre);
     return html;
 }
 
@@ -1904,7 +1950,6 @@ function _renderWinRmExec(alert) {
         });
         html += '</div></div>';
     }
-    html += _mitreHtml(d.mitre);
     return html;
 }
 
@@ -1935,7 +1980,6 @@ function _renderDnsAdEnum(alert) {
         });
         html += '</div>';
     }
-    html += _mitreHtml(d.mitre);
     return html;
 }
 
@@ -1969,7 +2013,6 @@ function _renderUnexpectedHttp(alert) {
         srcs.forEach(s => { html += `<span class="nks-port-badge">${_ipLabel(s)}</span>`; });
         html += '</div></div>';
     }
-    html += _mitreHtml(alert.mitre);
     return html;
 }
 
@@ -2011,7 +2054,6 @@ function _renderDnsTunnel(alert) {
         });
         html += '</tbody></table></div>';
     }
-    html += _mitreHtml(d.mitre);
     return html;
 }
 
@@ -2034,7 +2076,6 @@ function _renderHttpDoS(alert) {
             <div>${d.max_connection_duration_sec}s (threshold: ${d.threshold_min_duration_sec || '—'}s, max rate: ${d.threshold_max_rate_bps || '—'} B/s)</div>
         </div>`;
     }
-    html += _mitreHtml(d.mitre);
     return html;
 }
 
@@ -2065,7 +2106,6 @@ function _renderDhcpAbuse(alert) {
         d.sample_clients.forEach(ip => { html += `<span class="nks-port-badge">${escapeHtml(ip)}</span>`; });
         html += '</div></div>';
     }
-    html += _mitreHtml(d.mitre);
     return html;
 }
 
@@ -2101,7 +2141,6 @@ function _renderIpv6Tunnel(alert) {
         });
         html += '</div>';
     }
-    html += _mitreHtml(d.mitre);
     return html;
 }
 
@@ -2126,7 +2165,6 @@ function _renderCredentialStuffing(alert) {
         targets.forEach(t => { html += `<span class="nks-port-badge">${escapeHtml(t)}</span>`; });
         html += '</div></div>';
     }
-    html += _mitreHtml(d.mitre);
     return html;
 }
 
@@ -2155,7 +2193,6 @@ function _renderDefault(alert) {
         }
         html += '</div>';
     }
-    html += _mitreHtml(d.mitre);
     return html;
 }
 
@@ -2287,12 +2324,14 @@ function _reportAlert(a) {
         _reportKv('Last seen', a.last_seen ? formatTs(a.last_seen) : ''),
     ].join('');
 
-    const mitre = (a.mitre && a.mitre.tactic)
-        ? `<tr><th>ATT&amp;CK</th><td>${escapeHtml(a.mitre.tactic)}`
-          + ((a.mitre.techniques || []).length
-              ? ' — ' + a.mitre.techniques.map(t => escapeHtml(t.id + (t.name ? ` (${t.name})` : ''))).join(', ')
-              : '')
-          + '</td></tr>'
+    const m = alertMitre(a);
+    const mitreBits = [];
+    if (m && m.tactic) mitreBits.push(escapeHtml(m.tactic));
+    if (m && m.techniques.length) {
+        mitreBits.push(m.techniques.map(t => escapeHtml(_mitreTechniqueText(t))).filter(Boolean).join(', '));
+    }
+    const mitre = mitreBits.filter(Boolean).length
+        ? `<tr><th>ATT&amp;CK</th><td>${mitreBits.filter(Boolean).join(' — ')}</td></tr>`
         : '';
 
     const tags = (a.tags || []).length
@@ -2416,24 +2455,32 @@ function initExportButtons(data) {
     }
 }
 
-function exportCsv(baseName) {
-    if (!_allAlerts.length) return;
+function alertsToCsv(alerts) {
     const ESC = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const rows = [['Severity', 'Category', 'Confidence', 'Message', 'Source IP', 'Destination IP', 'First Seen', 'Tags']];
-    _allAlerts.forEach(a => {
-        const d = a.details || {};
+    const rows = [['Severity', 'Category', 'Confidence', 'Message', 'Source IP', 'Destination IP', 'First Seen', 'Tags', 'ATT&CK Tactic', 'ATT&CK Techniques']];
+    (alerts || []).forEach(a => {
+        const d = (a && a.details && typeof a.details === 'object') ? a.details : {};
+        const m = alertMitre(a);
+        const techText = m ? m.techniques.map(_mitreTechniqueText).filter(Boolean).join('; ') : '';
         rows.push([
-            ESC(a.severity),
-            ESC(a.category),
-            a.confidence != null ? (a.confidence * 100).toFixed(0) + '%' : '',
-            ESC(a.message),
+            ESC(a && a.severity),
+            ESC(a && a.category),
+            a && a.confidence != null ? (a.confidence * 100).toFixed(0) + '%' : '',
+            ESC(a && a.message),
             ESC(d.src_ip || d.ip || ''),
             ESC(d.dst_ip || ''),
-            a.first_seen ? new Date(a.first_seen * 1000).toISOString() : '',
-            ESC((a.tags || []).join('; ')),
+            a && a.first_seen ? new Date(a.first_seen * 1000).toISOString() : '',
+            ESC(((a && a.tags) || []).join('; ')),
+            ESC(m && m.tactic ? m.tactic : ''),
+            ESC(techText),
         ]);
     });
-    const csv  = rows.map(r => r.join(',')).join('\r\n');
+    return rows.map(r => r.join(',')).join('\r\n');
+}
+
+function exportCsv(baseName) {
+    if (!_allAlerts.length) return;
+    const csv  = alertsToCsv(_allAlerts);
     const blob = new Blob([csv], { type: 'text/csv' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
