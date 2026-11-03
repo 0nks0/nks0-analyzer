@@ -842,6 +842,85 @@
         return eq(stored, 'light', 'persisted value');
     });
 
+    // ── Guest upload size limit ──────────────────────────────────────────────
+    // The cap must stay in step with the backend's NKS0_GUEST_MAX_UPLOAD_MB
+    // default. The large-file warning is a separate, softer threshold.
+    group('Guest upload size limit');
+
+    const MB = 1024 * 1024;
+
+    function pcap(bytes, name) {
+        return { name: name || 'capture.pcap', size: bytes };
+    }
+
+    // Accepted files open an XHR. Swallow it so the suite never posts a capture.
+    function attemptUpload(file) {
+        resetUpload();
+        const Real = window.XMLHttpRequest;
+        const calls = { sent: false };
+        function FakeXHR() {
+            this.upload = {};
+            this.open = function () {};
+            this.send = function () { calls.sent = true; };
+        }
+        window.XMLHttpRequest = FakeXHR;
+        try {
+            uploadFile(file);
+        } finally {
+            window.XMLHttpRequest = Real;
+        }
+        return calls;
+    }
+
+    function uploadState() {
+        return {
+            error: document.getElementById('upload-error'),
+            message: document.getElementById('error-message').textContent,
+            progress: document.getElementById('upload-progress'),
+            warn: document.getElementById('upload-size-warn'),
+        };
+    }
+
+    check('one byte over 100 MB is rejected', () => {
+        const calls = attemptUpload(pcap(100 * MB + 1, 'over.pcap'));
+        const ui = uploadState();
+        if (ui.error.classList.contains('d-none')) return 'size-limit error was not shown';
+        if (!ui.progress.classList.contains('d-none')) return 'upload UI started for an over-limit file';
+        if (calls.sent) return 'upload was started for an over-limit file';
+        const maxLabel = formatBytes(100 * MB);
+        if (ui.message.indexOf(maxLabel) === -1) return 'message did not state the 100 MB maximum: ' + ui.message;
+        if (ui.message.indexOf('150') !== -1) return 'message still mentions 150 MB: ' + ui.message;
+        return true;
+    });
+
+    check('exactly 100 MB is accepted and shows the large-file warning', () => {
+        const calls = attemptUpload(pcap(100 * MB, 'exact.pcapng'));
+        const ui = uploadState();
+        if (!ui.error.classList.contains('d-none')) return 'exact maximum was rejected: ' + ui.message;
+        if (!calls.sent) return 'upload did not start';
+        if (ui.progress.classList.contains('d-none')) return 'progress UI was not shown';
+        if (ui.warn.classList.contains('d-none')) return 'large-file warning was hidden';
+        return true;
+    });
+
+    check('exactly 20 MB is accepted with no large-file warning', () => {
+        const calls = attemptUpload(pcap(20 * MB, 'twenty.pcap'));
+        const ui = uploadState();
+        if (!ui.error.classList.contains('d-none')) return '20 MB file was rejected: ' + ui.message;
+        if (!calls.sent) return 'upload did not start';
+        if (!ui.warn.classList.contains('d-none')) return 'warning was shown at exactly 20 MB';
+        return true;
+    });
+
+    check('one byte over 20 MB warns but is not rejected', () => {
+        const calls = attemptUpload(pcap(20 * MB + 1, 'just-over.pcap'));
+        const ui = uploadState();
+        if (!ui.error.classList.contains('d-none')) return 'file just over 20 MB was rejected: ' + ui.message;
+        if (!calls.sent) return 'upload did not start';
+        if (ui.warn.classList.contains('d-none')) return 'large-file warning was hidden';
+        return true;
+    });
+
     // ── Summary ──────────────────────────────────────────────────────────────
     const summary = document.getElementById('summary');
     summary.textContent = failed === 0

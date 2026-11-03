@@ -60,7 +60,7 @@ python3 -m http.server 8000
 ## File Limits
 
 - Supported formats: `.pcap`, `.pcapng`
-- Maximum upload size: **150 MB** (validated client-side before upload)
+- Maximum upload size: **100 MB** (validated client-side before upload)
 - Large captures may take a few minutes to analyze
 
 ---

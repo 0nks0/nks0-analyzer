@@ -54,6 +54,21 @@
             <tbody id="hosts-table-body"></tbody>
         </table>
         <canvas id="fixture-chart"></canvas>
+        <!-- Upload zone ids uploadFile() reads. Kept off-screen with the rest of the fixture. -->
+        <div id="upload-zone">
+            <input type="file" id="pcap-input">
+            <div id="upload-prompt"></div>
+            <div id="upload-progress" class="d-none">
+                <p id="progress-filename"></p>
+                <div id="upload-progress-bar"></div>
+                <p id="progress-status"></p>
+                <p id="progress-estimate"></p>
+                <p id="upload-size-warn" class="d-none">Large file — analysis may take a few minutes.</p>
+            </div>
+            <div id="upload-error" class="d-none">
+                <p id="error-message"></p>
+            </div>
+        </div>
     </div>
 
     <script>window.NKS_TEST_MODE = true;</script>
