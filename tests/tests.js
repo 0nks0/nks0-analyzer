@@ -442,6 +442,135 @@
         return eq(inRow, 2, 'mark buttons present in the row');
     });
 
+    // ── Per-alert triage keys ────────────────────────────────────────────────
+    // Two findings can share a rule id. The mark has to follow the flow, not
+    // the rule, and survive a re-analysis that only changes string formatting.
+    group('Per-alert triage keys');
+
+    // Two R002 flows from a real beacon-demo capture: same rule, different
+    // destination and first timestamp. Source port is absent, as in the API.
+    const flowA = {
+        id: 'R002', severity: 'High', category: 'BruteForce',
+        message: 'Possible brute-force behavior: 10.0.0.23 made 40 short TCP connections to 198.51.100.77:443.',
+        details: { src_ip: '10.0.0.23', dst_ip: '198.51.100.77', dst_port: 443, protocol: 'TCP', attempts: 40 },
+        evidence: { flow_key: { src_ip: '10.0.0.23', dst_ip: '198.51.100.77', dst_port: 443, protocol: 'TCP' } },
+        first_seen: 1767225612.0,
+    };
+    const flowB = {
+        id: 'R002', severity: 'High', category: 'BruteForce',
+        message: 'Possible brute-force behavior: 10.0.0.23 made 14 short TCP connections to 192.0.2.40:443.',
+        details: { src_ip: '10.0.0.23', dst_ip: '192.0.2.40', dst_port: 443, protocol: 'TCP', attempts: 14 },
+        first_seen: 1767225734.943087,
+    };
+
+    function reviewedKeys() {
+        return [].map.call(
+            document.querySelectorAll('.nks-mark-btn[data-mark="reviewed"]'),
+            b => b.getAttribute('data-triage-key')
+        );
+    }
+
+    check('two alerts from the same rule are marked independently', () => {
+        freshTriage();
+        renderList([flowA, flowB]);
+        const keys = reviewedKeys();
+        if (keys.length !== 2) return 'expected two reviewed buttons, got ' + keys.length;
+        if (keys[0] === keys[1]) return 'both alerts received the same triage key';
+        setAlertMark(keys[0], 'reviewed');
+        setAlertMark(keys[1], 'fp');
+        applyFilters();
+        const items = document.querySelectorAll('#alerts-container .nks-alert-item');
+        if (items.length !== 2) return 'a mark hid an alert while both toggles are on';
+        const aRev = items[0].querySelector('.nks-mark-btn[data-mark="reviewed"]').getAttribute('aria-pressed');
+        const bRev = items[1].querySelector('.nks-mark-btn[data-mark="reviewed"]').getAttribute('aria-pressed');
+        const aFp  = items[0].querySelector('.nks-mark-btn[data-mark="fp"]').getAttribute('aria-pressed');
+        const bFp  = items[1].querySelector('.nks-mark-btn[data-mark="fp"]').getAttribute('aria-pressed');
+        if (aRev !== 'true' || bRev !== 'false') return 'reviewed state leaked across the rule';
+        if (aFp !== 'false' || bFp !== 'true') return 'false-positive state leaked across the rule';
+        return true;
+    });
+
+    check('the key is stable across a reload and a re-analysis', () => {
+        freshTriage();
+        // Same flow, written the way a second run might: lowercased protocol,
+        // port as a string, timestamp as "1767225612.0", tuple only on flow_key.
+        const again = {
+            id: 'R002',
+            message: 'message text can change without being a different flow',
+            details: { src_ip: '10.0.0.23', dst_ip: '198.51.100.77', dst_port: '443', protocol: 'tcp' },
+            evidence: { flow_key: { src_ip: '10.0.0.23', dst_ip: '198.51.100.77', dst_port: 443, protocol: 'TCP' } },
+            first_seen: '1767225612.0',
+        };
+        const k1 = alertTriageKey(flowA);
+        const k2 = alertTriageKey(again);
+        if (k1 !== k2) return 're-analysis produced a different key: ' + k1 + ' vs ' + k2;
+        if (alertTriageKey(flowA) === alertTriageKey(flowB)) return 'two different flows share a key';
+        setAlertMark(k1, 'fp');
+        _triage = {};
+        loadTriage('test-analysis');
+        return eq(alertMark(k2), 'fp');
+    });
+
+    check('source port is part of the key when the capture has one', () => {
+        const left = alert({
+            id: 'R010',
+            details: { src_ip: '10.0.0.8', src_port: 4242, dst_ip: '10.0.0.9', dst_port: 445, protocol: 'TCP' },
+            first_seen: 10,
+        });
+        const right = alert({
+            id: 'R010',
+            details: { src_ip: '10.0.0.8', src_port: 4243, dst_ip: '10.0.0.9', dst_port: 445, protocol: 'TCP' },
+            first_seen: 10,
+        });
+        return alertTriageKey(left) !== alertTriageKey(right)
+            ? true : 'source port was ignored';
+    });
+
+    check('an old rule-scoped mark is copied onto each alert once, then dropped', () => {
+        freshTriage();
+        _triage = { R002: 'fp', R999: 'reviewed' };
+        saveTriage('test-analysis');
+        _triage = {};
+        loadTriage('test-analysis');
+        if (alertMark('R002') !== 'fp') return 'legacy mark was not loaded';
+        renderList([flowA, flowB]);
+        if (alertMark('R002')) return 'legacy rule key was kept after migration';
+        if (alertMark('R999') !== 'reviewed') return 'a mark for a rule not in this result was deleted';
+        const ka = alertTriageKey(flowA);
+        const kb = alertTriageKey(flowB);
+        if (alertMark(ka) !== 'fp' || alertMark(kb) !== 'fp') return 'the old mark did not apply to every alert of the rule';
+        setAlertMark(ka, null);
+        if (alertMark(kb) !== 'fp') return 'clearing one migrated mark cleared the other';
+        renderList([flowA, flowB]);
+        if (alertMark('R002')) return 'a second render restored the rule key';
+        return eq(alertMark(kb), 'fp');
+    });
+
+    check('missing fields do not throw and still separate alerts', () => {
+        freshTriage();
+        const samples = [
+            null, undefined, {},
+            { id: 'R1', details: null, evidence: null, first_seen: NaN, message: null },
+            { id: 'R1', details: { src_ip: null, dst_port: undefined }, evidence: { flow_key: null }, message: 'x' },
+            { details: 'nope', evidence: 5, first_seen: { bad: true }, message: 'still here' },
+        ];
+        samples.forEach(alertTriageKey);
+        const sparse = [
+            { id: 'R1', message: 'alpha' },
+            { id: 'R1', message: 'beta' },
+            { message: 'no rule id at all' },
+        ];
+        renderList(sparse);
+        const keys = reviewedKeys();
+        if (keys.length !== 3) return 'expected a mark control per sparse alert, got ' + keys.length;
+        if (!keys[0] || !keys[1] || !keys[2]) return 'a missing field produced an empty key';
+        if (keys[0] === keys[1]) return 'same rule with different messages collapsed to one key';
+        if (keys[0].indexOf('k|h|') !== 0) return 'expected the message hash fallback, got ' + keys[0];
+        setAlertMark(keys[0], 'reviewed');
+        if (alertMark(keys[1])) return 'hash-keyed marks are not independent';
+        return true;
+    });
+
     // ── Deep links ───────────────────────────────────────────────────────────
     group('Alert deep links');
 
