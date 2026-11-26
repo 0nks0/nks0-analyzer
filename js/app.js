@@ -9,7 +9,7 @@ if (window.self !== window.top) { try { window.top.location = window.self.locati
 // ─── Backend URL ──────────────────────────────────────────────────────────────
 
 const API_BASE = 'https://nks0-api.onrender.com';
-const APP_VERSION = '1.7.0'; // bump this when releasing a new version
+const APP_VERSION = '1.7.1'; // bump this when releasing a new version
 function getApiBase() { return API_BASE; }
 function apiHeaders() { return {}; }
 
@@ -326,8 +326,8 @@ function resetUpload() {
 
 // ─── Alert triage state (localStorage) ───────────────────────────────────────
 //
-// There are no accounts here — analysis is anonymous and results expire with
-// the server session — so triage state has nowhere to live server-side. It is
+// There are no accounts here — analysis is anonymous and guest results expire
+// one hour after upload — so triage state has nowhere to live server-side. It is
 // kept per-analysis in localStorage, the same place Recent Analyses already
 // uses: enough to work through a noisy capture in one sitting, and honest
 // about being device-local rather than pretending to be an account.
@@ -2398,10 +2398,11 @@ function _remediationHtml(category) {
 
 // ─── Standalone report ───────────────────────────────────────────────────────
 //
-// Analysis here is anonymous and results expire with the server session, so a
-// finding cannot be kept or handed to anyone — the result URL dies and there is
-// no account behind it. This produces one self-contained HTML file: every style
-// inlined, no scripts, no external requests. It opens offline, on any machine,
+// Analysis here is anonymous and guest results expire one hour after upload, so a
+// finding is not kept on the server indefinitely. The result stops loading after
+// expiry, and there is no account behind it. This produces one self-contained HTML
+// file: every style inlined, no scripts, no external requests. It opens offline, on
+// any machine,
 // years later, and can simply be emailed.
 //
 // Deliberately script-free. The content originates in a packet capture, i.e.
@@ -2544,7 +2545,7 @@ ${hosts ? `<h2>Top hosts</h2><table class="hosts">
 <tbody>${hosts}</tbody></table>` : ''}
 <footer>
 Self-contained export from the NKS0 PCAP Analyzer. This is a point-in-time
-snapshot — the source analysis expires with the server session. Triage marks
+snapshot — guest results expire one hour after upload. Triage marks
 shown here were recorded on the exporting device only.
 </footer>
 </body></html>`;
