@@ -23,8 +23,10 @@ are welcome via the contact above.
 
 NKS0 analyzes user-supplied packet captures, which may contain sensitive data:
 
-- Uploads are processed to produce analysis results and are **not intended for
-  long-term storage** — results expire with the server session.
+- Uploads are processed to produce analysis results and are **not kept for
+  long-term storage**. Guest results include an expiry time one hour after
+  upload. Expired guest analyses are deleted when the service starts and
+  about once an hour after that.
 - Detected cleartext credentials are held in browser memory only and are not
   written to the DOM or disk unless the user explicitly reveals them.
 - Users are responsible for ensuring they are authorized to analyze any capture

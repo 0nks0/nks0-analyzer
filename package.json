@@ -1,6 +1,6 @@
 {
   "name": "nks0-analyzer",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "private": true,
   "description": "NKS0 PCAP Analyzer — static GitHub Pages frontend. No build step: the site is served exactly as committed.",
   "scripts": {
